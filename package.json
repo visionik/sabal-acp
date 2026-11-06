@@ -5,9 +5,18 @@
   "type": "module",
   "license": "MIT",
   "private": true,
-  "bin": { "sabal-acp": "dist/main.js" },
-  "engines": { "node": ">=20" },
-  "files": ["dist", "games", "README.md", "LICENSE"],
+  "bin": {
+    "sabal-acp": "dist/main.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "dist",
+    "games",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc",
     "prepare": "npm run build",
@@ -16,7 +25,7 @@
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "^2.4.0",
-    "sabal": "file:../sabal"
+    "sabal": "github:visionik/sabal"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",
