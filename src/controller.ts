@@ -31,7 +31,7 @@ export const SLASH_COMMANDS = [
 ] as const;
 
 export const WELCOME_HEADING =
-  'Welcome to SABAL (Scott Adams Bot Adventure Library) ACP (Agent-Client Protocol "Agent")';
+  'Welcome to SABAL (Scott Adams Brass-lamp Adventure Library) ACP (Agent-Client Protocol "Agent")';
 
 const ASCII_RE = /^[\x20-\x7e\t\r\n]*$/;
 
