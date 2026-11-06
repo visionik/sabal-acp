@@ -1,0 +1,24 @@
+{
+  "name": "sabal-acp",
+  "version": "0.1.0",
+  "description": "SABAL ACP: play Scott Adams adventure games from any Agent Client Protocol client",
+  "type": "module",
+  "license": "MIT",
+  "private": true,
+  "bin": { "sabal-acp": "dist/main.js" },
+  "engines": { "node": ">=20" },
+  "files": ["dist", "games", "README.md", "LICENSE"],
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/main.js",
+    "test": "npm run build && node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "@agentclientprotocol/sdk": "^2.4.0",
+    "sabal": "file:../sabal"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "typescript": "^5.9.3"
+  }
+}
