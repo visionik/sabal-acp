@@ -72,6 +72,10 @@ export class Controller {
           "(1978–1985). I don't understand free-form chat. Inside a game I understand " +
           'two-word commands like `GET LAMP`, `GO NORTH` or `INVENTORY`.',
       ) +
+      note(
+        '_The games are © Scott Adams, 1978–1985, and shared by him as shareware: free to play, ' +
+          'with payment voluntary. Support him at [msadams.com](https://www.msadams.com/)._',
+      ) +
       this.menuText()
     );
   }

@@ -63,4 +63,4 @@ test/              end-to-end tests over a real ACP stdio connection
 
 ## Licence
 
-The code is MIT licensed. The bundled game databases keep their owners' rights; they are included for private use.
+The code is MIT licensed. The bundled games in `games/` are not: they are © Scott Adams, 1978–1985, and he distributes them as shareware that may be freely downloaded and enjoyed, with payment voluntary. They come unchanged from The Scott Adams Collection 2.2 on the Interactive Fiction Archive, converted by Paul David Doherty. See [`games/README.md`](games/README.md) for the full notice and credits, and [msadams.com](https://www.msadams.com/) to support Scott Adams.

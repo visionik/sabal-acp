@@ -25,6 +25,7 @@ test('a new session gets the welcome screen, menu, commands and title', () =>
   withAgent(async (a) => {
     const t = a.text();
     assert.match(t, /Welcome to SABAL \(Scott Adams Brass-lamp Adventure Library\) ACP \(Agent-Client Protocol "Agent"\)/);
+    assert.match(t, /The games are © Scott Adams, 1978–1985, and shared by him as shareware/);
     assert.match(t, /not actually an LLM/);
     assert.match(t, /1\. Adventureland/);
     assert.match(t, /18\. Mini-Adventure Sampler/);
