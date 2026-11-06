@@ -1,6 +1,6 @@
 # sabal-acp
 
-An [Agent Client Protocol](https://agentclientprotocol.com) "agent" that plays Scott Adams adventure games, built on [SABAL](https://github.com/visionik/sabal) (Scott Adams Bot Adventure Library).
+An [Agent Client Protocol](https://agentclientprotocol.com) "agent" that plays Scott Adams adventure games, built on [SABAL](https://github.com/visionik/sabal) (Scott Adams Brass-lamp Adventure Library).
 
 It isn't an LLM or an AI agent; it only acts like one. Any ACP client (Deft Console, Zed, …) can start it and chat with it: a new session opens on a welcome screen and a menu of games, and from there you play by typing commands like `GET LAMP` or `GO NORTH`.
 
