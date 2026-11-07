@@ -135,3 +135,40 @@ test('--no-pictures turns them off', async () => {
     a.close();
   }
 });
+
+const pngWidth = (image) => Buffer.from(image.data, 'base64').readUInt32BE(16);
+
+test('/scale redraws the room bigger or smaller, and is remembered', async () => {
+  const dir = picturesDir();
+  const a = await startAgent(['--pictures-dir', dir], { clientCapabilities: DEFT_IMAGES });
+  let settings;
+  try {
+    await a.waitFor(() => a.text().includes('## Games'));
+    await a.prompt('1');
+    assert.equal(pngWidth(a.images()[0]), 1024, 'Spectrum pictures are 256 pixels wide, drawn at 4x');
+    assert.equal(a.images()[0]._meta.alt, "I'm in a forest", 'the caption is just the room');
+    let r = await a.prompt('/scale 1.5');
+    assert.match(r.text, /now drawn at 1\.5×/);
+    assert.equal(a.images().length, 2, 'the room is shown again at the new size');
+    assert.equal(pngWidth(a.images()[1]), 1536);
+    r = await a.prompt('/scale');
+    assert.match(r.text, /drawn at 1\.5×/);
+    r = await a.prompt('/scale 50%');
+    assert.equal(pngWidth(a.images().at(-1)), 512);
+    r = await a.prompt('/scale 9');
+    assert.match(r.text, /from 0\.25 to 4/);
+    r = await a.prompt('/scale big');
+    assert.match(r.text, /from 0\.25 to 4/);
+    settings = join(a.savesDir, 'settings.json');
+  } finally {
+    a.close();
+  }
+  const b = await startAgent(['--pictures-dir', dir, '--settings', settings], { clientCapabilities: DEFT_IMAGES });
+  try {
+    await b.waitFor(() => b.text().includes('## Games'));
+    await b.prompt('1');
+    assert.equal(pngWidth(b.images()[0]), 512, 'the last scale is kept');
+  } finally {
+    b.close();
+  }
+});

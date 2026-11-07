@@ -10,6 +10,7 @@ import { Catalog } from './catalog.js';
 import { SaveStore } from './saves.js';
 import { createAgent } from './agent.js';
 import { Pictures } from './pictures/index.js';
+import { Settings } from './settings.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(join(here, '..', 'package.json'), 'utf8')) as { version: string };
@@ -24,6 +25,8 @@ Options:
   --pictures-dir <dir>  Your own SAGA tape or snapshot files, for room pictures
                         (default: ~/.sabal-acp/pictures; env SABAL_PICTURES)
   --no-pictures         Never send pictures
+  --settings <file>     Where preferences such as /scale are kept
+                        (default: ~/.sabal-acp/settings.json; env SABAL_SETTINGS)
   --no-wait             Skip the games' 2-second pauses
   --version, --help
 `;
@@ -34,6 +37,7 @@ function parseArgs(argv: string[]) {
     saves: process.env.SABAL_SAVES || join(homedir(), '.sabal-acp', 'saves'),
     pictures: process.env.SABAL_PICTURES || join(homedir(), '.sabal-acp', 'pictures'),
     showPictures: true,
+    settings: process.env.SABAL_SETTINGS || join(homedir(), '.sabal-acp', 'settings.json'),
     waits: true,
   };
   for (let i = 0; i < argv.length; i++) {
@@ -47,6 +51,7 @@ function parseArgs(argv: string[]) {
     else if (a === '--saves-dir') opts.saves = value();
     else if (a === '--pictures-dir') opts.pictures = value();
     else if (a === '--no-pictures') opts.showPictures = false;
+    else if (a === '--settings') opts.settings = value();
     else if (a === '--no-wait') opts.waits = false;
     else if (a === '--version') (process.stdout.write(`${pkg.version}\n`), process.exit(0));
     else if (a === '--help' || a === '-h') (process.stdout.write(USAGE), process.exit(0));
@@ -74,6 +79,7 @@ const app = createAgent({
   saves: new SaveStore(resolve(opts.saves)),
   waits: opts.waits,
   version: pkg.version,
+  settings: new Settings(resolve(opts.settings)),
   pictures: opts.showPictures
     ? new Pictures(resolve(opts.pictures), (game) => {
         const entry = catalog.byId(game);

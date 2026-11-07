@@ -5,6 +5,7 @@ import type { Catalog, Game } from './catalog.js';
 import { SaveStore, cleanSaveName, autoSaveName, type SaveEntry } from './saves.js';
 import { roomBlock, narration, note } from './render.js';
 import type { Pictures } from './pictures/index.js';
+import { Settings, MIN_SCALE, MAX_SCALE } from './settings.js';
 
 export interface Io {
   /** Append Markdown to the agent's reply. */
@@ -22,6 +23,8 @@ export interface ControllerOptions {
   waits?: boolean;
   /** Room pictures, when the client can show images. */
   pictures?: Pictures;
+  /** Preferences that last between sessions, such as the picture scale. */
+  settings?: Settings;
 }
 
 type State = 'menu' | 'playing' | 'save-name';
@@ -32,6 +35,7 @@ export const SLASH_COMMANDS = [
   { name: 'load', description: 'Restore a saved game', input: { hint: 'save name or number' } },
   { name: 'saves', description: 'List saved games' },
   { name: 'restart', description: 'Start the current game over' },
+  { name: 'scale', description: 'Draw pictures bigger or smaller, e.g. /scale 1.5', input: { hint: 'size, e.g. 1.5' } },
   { name: 'help', description: 'How to play, and these commands' },
 ] as const;
 
@@ -53,6 +57,7 @@ export class Controller {
   private lastSaveList: SaveEntry[] = [];
   private readonly waits: boolean;
   private readonly pictures: Pictures | undefined;
+  private readonly settings: Settings;
   /** The picture last shown in this game, so moving within it doesn't repeat it. */
   private shownPicture: string | undefined;
 
@@ -63,6 +68,7 @@ export class Controller {
   ) {
     this.waits = options.waits ?? true;
     this.pictures = options.pictures;
+    this.settings = options.settings ?? new Settings();
   }
 
   get currentState(): State {
@@ -192,6 +198,8 @@ export class Controller {
         return this.load(arg, io, confirming);
       case 'save':
         return this.saveCommand(arg, io);
+      case 'scale':
+        return this.scaleCommand(arg, io);
       case 'restart':
         if (!this.game) return void (await io.emit(note("You're not in a game. Pick one from the menu first.")));
         if (this.dirty && confirming !== key) return this.askConfirm(key, 'start over', io);
@@ -363,26 +371,48 @@ export class Controller {
   }
 
   /** Show the room's picture if it differs from the one on screen. */
-  private async showPicture(session: Session, io: Io): Promise<void> {
-    if (!this.pictures || !io.image || !this.game) return;
-    const picture = this.pictures.forRoom(this.game.id, session.snapshot);
+  private async showPicture(session: Session, io: Io, again = false): Promise<boolean> {
+    if (!this.pictures || !io.image || !this.game) return false;
+    const picture = this.pictures.forRoom(this.game.id, session.snapshot, this.settings.scale);
     if (!picture) {
       this.shownPicture = undefined; // darkness or a room without one: show the next picture again
-      return;
+      return false;
     }
-    if (picture.key === this.shownPicture) return;
+    if (picture.key === this.shownPicture && !again) return false;
     this.shownPicture = picture.key;
-    await io.image(picture.png, `${this.room} (${picture.platform} picture)`);
+    await io.image(picture.png, this.room);
+    return true;
+  }
+
+  private async scaleCommand(arg: string, io: Io): Promise<void> {
+    const shown = (s: number) => `${Number(s.toFixed(2))}×`;
+    if (!arg) {
+      return void (await io.emit(
+        note(`Pictures are drawn at ${shown(this.settings.scale)}. Change it with \`/scale <size>\`, from ${MIN_SCALE} to ${MAX_SCALE}; \`/scale 1\` is the usual size.`),
+      ));
+    }
+    const match = /^x?\s*(\d+(?:\.\d+)?|\.\d+)\s*(%|x)?$/i.exec(arg.trim());
+    let value = match ? Number(match[1]) : NaN;
+    if (match?.[2] === '%') value /= 100;
+    if (!(value >= MIN_SCALE && value <= MAX_SCALE)) {
+      return void (await io.emit(note(`Give a size from ${MIN_SCALE} to ${MAX_SCALE}, like \`/scale 1.5\`.`)));
+    }
+    this.settings.scale = value;
+    if (!this.pictures || !io.image) {
+      return void (await io.emit(note(`Pictures will be drawn at ${shown(value)}, though this client isn't showing them.`)));
+    }
+    await io.emit(note(`_Pictures are now drawn at ${shown(value)}._`));
+    // Show the room again at the new size, so the change is visible straight away.
+    if (this.state === 'playing' && this.session) await this.showPicture(this.session, io, true);
   }
 
   /** Show a close-up for something the game just said (a genie appearing, say). */
   private async showCloseUp(text: string, io: Io): Promise<void> {
     if (!text || !this.pictures || !io.image || !this.game) return;
-    const picture = this.pictures.forMessage(this.game.id, text);
+    const picture = this.pictures.forMessage(this.game.id, text, this.settings.scale);
     if (!picture) return;
     this.shownPicture = undefined; // the room's picture shows again next time
-    const caption = text.trim().split('\n')[0]!.trim();
-    await io.image(picture.png, `${caption} (${picture.platform} picture)`);
+    await io.image(picture.png, text.trim().split('\n')[0]!.trim());
   }
 
   private async engineFailure(err: unknown, io: Io): Promise<void> {
