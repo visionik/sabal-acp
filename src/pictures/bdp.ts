@@ -17,8 +17,11 @@ export interface BdpLayout {
   readonly charset: number;
   /** How many pictures the offset table holds. */
   readonly count: number;
-  /** Format version: 1 uses only the bright colours. */
-  readonly version: 1 | 2;
+  /**
+   * Format version: 1 uses only the bright colours; 2 adds the normal ones;
+   * 3 stores table entries relative to the table and columns without an offset.
+   */
+  readonly version: 1 | 2 | 3;
 }
 
 /** An indexed-colour picture: 16 Spectrum colours, 0–7 normal and 8–15 bright. */
@@ -43,13 +46,14 @@ export interface PictureHeader {
 
 export function header(mem: Memory, layout: BdpLayout, n: number): PictureHeader {
   const table = layout.charset + 0x800;
-  const address = mem[table + 2 * n]! | (mem[table + 2 * n + 1]! << 8);
+  const entry = mem[table + 2 * n]! | (mem[table + 2 * n + 1]! << 8);
+  const address = layout.version >= 3 ? (entry + table + 0x100) & 0xffff : entry;
   return {
     address,
     width: mem[address]!,
     height: mem[address + 1]!,
-    // Columns are stored 4 cells to the right of where they're drawn.
-    x: mem[address + 2]! - 4,
+    // Before version 3, columns are stored 4 cells to the right of where they're drawn.
+    x: mem[address + 2]! - (layout.version >= 3 ? 0 : 4),
     y: mem[address + 3]!,
   };
 }
