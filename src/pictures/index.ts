@@ -10,9 +10,10 @@ import { loadSpectrum } from './tape.js';
 import { draw, plausible, type BdpLayout, type Bitmap } from './bdp.js';
 import { ATARI_PALETTE, drawAtari, loadAtr, pictureData, pictureOffsets, type AtariDisk } from './atari.js';
 import { readD64 } from './d64.js';
+import { drawLines, linesAdventure, linesPicture, LINES_PALETTE, type Instruction } from './atari-lines.js';
 import { encodePng } from './png.js';
 
-type Release = SpectrumRelease | AtariRelease | C64Release;
+type Release = SpectrumRelease | AtariRelease | C64Release | AtariLinesRelease;
 
 interface SpectrumRelease extends Common {
   readonly platform: 'ZX Spectrum';
@@ -37,6 +38,12 @@ interface C64Release extends Common {
    * The files hold Atari-format pictures, so `rooms` and `dark` come from the disk.
    */
   readonly prefix: string;
+}
+
+interface AtariLinesRelease extends Common {
+  readonly platform: 'Atari 8-bit';
+  /** The adventure number at the start of the picture disk's index; pictures follow room order. */
+  readonly lines: number;
 }
 
 interface Common {
@@ -79,6 +86,8 @@ const RELEASES: readonly Release[] = [
   { game: 'adv13', platform: 'Commodore 64', text: "*I'm on a Drawbridge", prefix: 'R13' },
   { game: 'adv14b', platform: 'Commodore 64', text: 'Yoyodyne', prefix: 'R' },
   { game: 'quest2', platform: 'Commodore 64', text: 'chem lab', prefix: 'R' },
+  { game: 'adv02', platform: 'Atari 8-bit', lines: 2 },
+  { game: 'adv06', platform: 'Atari 8-bit', lines: 6 },
   {
     // The pictures run in room order, from "It's too dark!" for room 0.
     game: 'adv13',
@@ -110,6 +119,7 @@ const RELEASES: readonly Release[] = [
       { message: /Gas bladder blew up/, picture: 36 },
     ],
   },
+  { game: 'adv01', platform: 'Atari 8-bit', lines: 1 },
   {
     game: 'adv03',
     platform: 'ZX Spectrum',
@@ -314,9 +324,27 @@ function recognise(name: string, data: Uint8Array): Hit[] {
     }
   }
   const sectors = /\.atr$/i.test(name) ? loadAtr(data) : undefined;
+  const adventure = sectors && linesAdventure(sectors);
+  if (sectors && adventure) {
+    for (const release of RELEASES) {
+      if (!('lines' in release) || release.lines !== adventure) continue;
+      const pictures = new Map<number, Instruction[]>();
+      for (let room = 0; room < 100; room++) {
+        const picture = linesPicture(sectors, room);
+        if (picture?.length) pictures.set(room, picture);
+      }
+      if (!pictures.size) continue;
+      hits.push({
+        release,
+        rooms: Object.fromEntries([...pictures.keys()].filter((r) => r > 0).map((r) => [r, r])),
+        dark: pictures.has(0) ? 0 : undefined,
+        render: ([n], scale) => encodePng(drawLines(pictures.get(n!)!), LINES_PALETTE, 3 * scale),
+      });
+    }
+  }
   if (sectors) {
     for (const release of RELEASES) {
-      if (release.platform !== 'Atari 8-bit') continue;
+      if (release.platform !== 'Atari 8-bit' || !('disk' in release)) continue;
       const pictures = pictureData(sectors, release.disk);
       const offsets = pictures && pictureOffsets(pictures, release.disk);
       if (!pictures || offsets!.length < release.disk.count) continue;
