@@ -47,13 +47,16 @@ Scott Adams's games were later sold with pictures, as Scott Adams Graphic Advent
 
 To try it, put a ZX Spectrum tape (`.tap` or `.tzx`) or 48K snapshot (`.sna`) of a supported release in `~/.sabal-acp/pictures`. sabal-acp recognises the game from the file's contents, so any file name works.
 
-| Game | Release |
-| --- | --- |
-| Adventureland | ZX Spectrum, Adventure International (UK) |
+| Game | Release | Pictures |
+| --- | --- | --- |
+| Adventureland | ZX Spectrum, Adventure International (UK) | every room, objects such as the open door and the sleeping dragon, close-ups of the genie, the dragon and the explosion |
+| Secret Mission | ZX Spectrum, Adventure International (UK) | every room, the dark, close-ups of the briefing tape and the bomb |
+| The Sorcerer of Claymorgue Castle | ZX Spectrum, Adventure International (UK) | 15 of 32 rooms |
+| Spider-Man | ZX Spectrum, Adventure International (UK) | 33 of 40 rooms |
 
-Pictures go only to clients that say they can draw PNG images in agent messages. ACP has no standard way to say that yet, so for now that means Deft Console, which says so in `clientCapabilities._meta["deft.co"].display.image`. Other clients get the text, as before. A picture is sent when you enter a room whose picture differs from the last one shown; in the dark there is none.
+Pictures go only to clients that say they can draw PNG images in agent messages. ACP has no standard way to say that yet, so for now that means Deft Console, which says so in `clientCapabilities._meta["deft.co"].display.image`. Other clients get the text, as before. A picture is sent when you enter a room whose picture differs from the last one shown.
 
-Room pictures are drawn without the small overlays the original showed for some objects (an open door, a hole in the window), and close-ups such as looking at the dragon aren't shown yet.
+The Spectrum games choose their pictures in their own code, not in their data, so each picture here was matched to its room, object or message by eye. Where the match wasn't clear, the room shows no picture rather than a wrong one. Savage Island's pictures use a later version of the format that isn't decoded correctly yet, and The Incredible Hulk uses an earlier one.
 
 ## How it maps to ACP
 

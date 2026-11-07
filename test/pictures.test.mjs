@@ -72,6 +72,24 @@ test('Pictures finds the game, maps rooms to pictures, and shows nothing in the 
   assert.equal(pictures.forRoom('adv01', { room: 11, dark: true, itemLocations: [] }), undefined);
   assert.equal(pictures.forRoom('adv02', { room: 1, dark: false, itemLocations: [] }), undefined);
   assert.equal(new Pictures('/nonexistent').list().length, 0);
+  // The same pictures without Adventureland's room text aren't taken for it.
+  const other = mkdtempSync(join(tmpdir(), 'sabal-acp-pictures-'));
+  writeFileSync(join(other, 'other.tap'), tap(CHARSET, fakeMemory().slice(0, -14)));
+  assert.equal(new Pictures(other).list().length, 0);
+});
+
+test('object overlays and message close-ups', () => {
+  const pictures = new Pictures(picturesDir());
+  const items = Array(60).fill(0);
+  const at = (room, placed) => pictures.forRoom('adv01', { room, dark: false, itemLocations: Object.assign([...items], placed) });
+  assert.equal(at(5, {}).key, 'adv01:4');
+  assert.equal(at(5, { 17: 5 }).key, 'adv01:4+29', 'the open door');
+  assert.equal(at(21, { 43: 21 }).key, 'adv01:15+31', 'the bear, in any of its states');
+  assert.equal(at(23, { 27: 23 }).key, 'adv01:17+32', 'the sleeping dragon');
+  assert.equal(at(22, { 27: 22 }).key, 'adv01:16', 'an overlay only belongs to its own room');
+  assert.equal(pictures.forMessage('adv01', 'A glowing Genie appears, drops somehting, then vanishes.').key, 'adv01:34');
+  assert.equal(pictures.forMessage('adv01', 'Gas bladder blew up').key, 'adv01:36');
+  assert.equal(pictures.forMessage('adv01', 'OK'), undefined);
 });
 
 const DEFT_IMAGES = { _meta: { 'deft.co': { display: { image: { mimeTypes: ['image/png', 'image/gif'] } } } } };

@@ -292,6 +292,7 @@ export class Controller {
     for (;;) {
       let buffer = '';
       const flush = async () => {
+        await this.showCloseUp(buffer, io);
         const md = narration(buffer);
         buffer = '';
         if (md) await io.emit(md);
@@ -372,6 +373,16 @@ export class Controller {
     if (picture.key === this.shownPicture) return;
     this.shownPicture = picture.key;
     await io.image(picture.png, `${this.room} (${picture.platform} picture)`);
+  }
+
+  /** Show a close-up for something the game just said (a genie appearing, say). */
+  private async showCloseUp(text: string, io: Io): Promise<void> {
+    if (!text || !this.pictures || !io.image || !this.game) return;
+    const picture = this.pictures.forMessage(this.game.id, text);
+    if (!picture) return;
+    this.shownPicture = undefined; // the room's picture shows again next time
+    const caption = text.trim().split('\n')[0]!.trim();
+    await io.image(picture.png, `${caption} (${picture.platform} picture)`);
   }
 
   private async engineFailure(err: unknown, io: Io): Promise<void> {

@@ -21,7 +21,8 @@ export function fakeMemory() {
     pictures.push(...picture);
     address += picture.length;
   }
-  return Uint8Array.from([...charset, ...table, ...pictures]);
+  const roomText = [...'\0dismal swamp\0'].map((c) => c.charCodeAt(0));
+  return Uint8Array.from([...charset, ...table, ...pictures, ...roomText]);
 }
 
 /** Wrap a CODE block loaded at `start` as a .tap file. */
