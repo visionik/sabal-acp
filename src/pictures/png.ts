@@ -1,5 +1,5 @@
-// A minimal PNG encoder for indexed-colour pictures, scaled up by whole pixels
-// so the blocky originals stay sharp when a client resizes them.
+// A minimal PNG encoder for indexed-colour pictures, enlarged without smoothing
+// so the blocky originals stay sharp.
 import { deflateSync } from 'node:zlib';
 import type { Bitmap } from './bdp.js';
 
@@ -16,14 +16,15 @@ export function encodePng(
   palette: readonly (readonly [number, number, number])[] = SPECTRUM_PALETTE,
   scale = 4,
 ): Buffer {
-  const width = bitmap.width * scale;
-  const height = bitmap.height * scale;
+  // Any scale works: each output pixel takes the colour of the source pixel it falls in.
+  const width = Math.max(1, Math.round(bitmap.width * scale));
+  const height = Math.max(1, Math.round(bitmap.height * scale));
   const raw = Buffer.alloc((width + 1) * height);
   for (let y = 0; y < height; y++) {
-    const src = Math.floor(y / scale) * bitmap.width;
+    const src = Math.min(bitmap.height - 1, Math.floor(y / scale)) * bitmap.width;
     const row = y * (width + 1);
     raw[row] = 0; // filter: none
-    for (let x = 0; x < width; x++) raw[row + 1 + x] = bitmap.pixels[src + Math.floor(x / scale)]!;
+    for (let x = 0; x < width; x++) raw[row + 1 + x] = bitmap.pixels[src + Math.min(bitmap.width - 1, Math.floor(x / scale))]!;
   }
   const ihdr = Buffer.alloc(13);
   ihdr.writeUInt32BE(width, 0);

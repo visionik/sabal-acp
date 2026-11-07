@@ -5,6 +5,7 @@ import { Controller, SLASH_COMMANDS, type Io } from './controller.js';
 import type { Catalog } from './catalog.js';
 import type { SaveStore } from './saves.js';
 import type { Pictures } from './pictures/index.js';
+import type { Settings } from './settings.js';
 
 export interface AgentOptions {
   catalog: Catalog;
@@ -13,6 +14,8 @@ export interface AgentOptions {
   version: string;
   /** Room pictures; shown only to clients that say they can draw PNG images. */
   pictures?: Pictures;
+  /** Preferences that last between sessions. */
+  settings?: Settings;
 }
 
 interface Live {
@@ -57,6 +60,7 @@ export function createAgent(options: AgentOptions): acp.AgentApp {
     const controller = new Controller(options.catalog, options.saves, {
       waits: options.waits,
       pictures: drawsImages ? options.pictures : undefined,
+      settings: options.settings,
     });
     sessions.set(sessionId, { controller, queue: Promise.resolve() });
     // Updates for a session must follow the response that creates it, so the

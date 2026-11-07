@@ -184,13 +184,13 @@ interface Found {
   /** Picture number for each room, and for the dark. */
   readonly rooms: Readonly<Record<number, number>>;
   readonly dark?: number;
-  /** Draw pictures one over another, as a PNG. */
-  readonly render: (layers: number[]) => Buffer;
+  /** Draw pictures one over another, as a PNG at `scale` times the usual size. */
+  readonly render: (layers: number[], scale: number) => Buffer;
 }
 
 interface Hit {
   readonly release: Release;
-  readonly render: (layers: number[]) => Buffer;
+  readonly render: (layers: number[], scale: number) => Buffer;
   readonly rooms?: Record<number, number>;
   readonly dark?: number;
 }
@@ -219,31 +219,31 @@ export class Pictures {
   }
 
   /** The picture for where the player is, or undefined (dark, no picture, or no file). */
-  forRoom(game: string, snapshot: Snapshot): Picture | undefined {
+  forRoom(game: string, snapshot: Snapshot, scale = 1): Picture | undefined {
     const found = this.scan().get(game);
-    if (snapshot.dark) return found?.dark === undefined ? undefined : this.picture(found, [found.dark]);
+    if (snapshot.dark) return found?.dark === undefined ? undefined : this.picture(found, [found.dark], scale);
     const n = found?.rooms[snapshot.room];
     if (!found || n === undefined) return undefined;
     const overlays = (found.release.overlays ?? [])
       .filter((o) => o.room === snapshot.room && o.items.some((i) => snapshot.itemLocations[i] === snapshot.room))
       .map((o) => o.picture);
-    return this.picture(found, [n, ...overlays]);
+    return this.picture(found, [n, ...overlays], scale);
   }
 
   /** A close-up for a message the game just printed, if the release has one. */
-  forMessage(game: string, text: string): Picture | undefined {
+  forMessage(game: string, text: string, scale = 1): Picture | undefined {
     const found = this.scan().get(game);
     const hit = found?.release.closeUps?.find((c) => c.message.test(text));
-    return found && hit ? this.picture(found, [hit.picture]) : undefined;
+    return found && hit ? this.picture(found, [hit.picture], scale) : undefined;
   }
 
   /** Pictures drawn one over another, as a PNG. */
-  private picture(found: Found, layers: number[]): Picture {
+  private picture(found: Found, layers: number[], scale: number): Picture {
     const key = `${found.release.game}:${layers.join('+')}`;
-    let png = this.cache.get(key);
+    let png = this.cache.get(`${key}@${scale}`);
     if (!png) {
-      png = found.render(layers);
-      this.cache.set(key, png);
+      png = found.render(layers, scale);
+      this.cache.set(`${key}@${scale}`, png);
     }
     return { png, key, platform: found.release.platform };
   }
@@ -305,10 +305,10 @@ function recognise(name: string, data: Uint8Array): Hit[] {
       if (release.platform !== 'ZX Spectrum' || !text.includes(release.text) || !plausible(mem, release.layout)) continue;
       hits.push({
         release,
-        render: (layers) => {
+        render: (layers, scale) => {
           let bitmap: Bitmap | undefined;
           for (const n of layers) bitmap = draw(mem, release.layout, n, bitmap);
-          return encodePng(bitmap!);
+          return encodePng(bitmap!, undefined, 4 * scale);
         },
       });
     }
@@ -322,10 +322,10 @@ function recognise(name: string, data: Uint8Array): Hit[] {
       if (!pictures || offsets!.length < release.disk.count) continue;
       hits.push({
         release,
-        render: ([n]) => {
+        render: ([n], scale) => {
           // Atari pictures are drawn alone: overlays aren't supported for them yet.
           const { bitmap, colours } = drawAtari(pictures, offsets![n!]!, release.disk.old);
-          return encodePng(bitmap, colours.map((c) => ATARI_PALETTE[c]!), 3);
+          return encodePng(bitmap, colours.map((c) => ATARI_PALETTE[c]!), 3 * scale);
         },
       });
     }
@@ -346,10 +346,10 @@ function recognise(name: string, data: Uint8Array): Hit[] {
         release,
         rooms,
         dark: pictures.has(0) ? 0 : undefined,
-        render: ([n]) => {
+        render: ([n], scale) => {
           // The C64 releases use the Atari's picture format and colour numbers.
           const { bitmap, colours } = drawAtari(pictures.get(n!)!, 0);
-          return encodePng(bitmap, colours.map((c) => ATARI_PALETTE[c]!), 3);
+          return encodePng(bitmap, colours.map((c) => ATARI_PALETTE[c]!), 3 * scale);
         },
       });
     }
