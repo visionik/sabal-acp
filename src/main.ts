@@ -9,6 +9,7 @@ import * as acp from '@agentclientprotocol/sdk';
 import { Catalog } from './catalog.js';
 import { SaveStore } from './saves.js';
 import { createAgent } from './agent.js';
+import { Pictures } from './pictures/index.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(join(here, '..', 'package.json'), 'utf8')) as { version: string };
@@ -18,9 +19,12 @@ Play Scott Adams adventure games from any ACP (Agent Client Protocol) client.
 It speaks ACP on stdin/stdout; point your client at this command.
 
 Options:
-  --games-dir <dir>   Folder of .dat games (default: the bundled games; env SABAL_GAMES)
-  --saves-dir <dir>   Where saves go (default: ~/.sabal-acp/saves; env SABAL_SAVES)
-  --no-wait           Skip the games' 2-second pauses
+  --games-dir <dir>     Folder of .dat games (default: the bundled games; env SABAL_GAMES)
+  --saves-dir <dir>     Where saves go (default: ~/.sabal-acp/saves; env SABAL_SAVES)
+  --pictures-dir <dir>  Your own SAGA tape or snapshot files, for room pictures
+                        (default: ~/.sabal-acp/pictures; env SABAL_PICTURES)
+  --no-pictures         Never send pictures
+  --no-wait             Skip the games' 2-second pauses
   --version, --help
 `;
 
@@ -28,6 +32,8 @@ function parseArgs(argv: string[]) {
   const opts = {
     games: process.env.SABAL_GAMES || join(here, '..', 'games'),
     saves: process.env.SABAL_SAVES || join(homedir(), '.sabal-acp', 'saves'),
+    pictures: process.env.SABAL_PICTURES || join(homedir(), '.sabal-acp', 'pictures'),
+    showPictures: true,
     waits: true,
   };
   for (let i = 0; i < argv.length; i++) {
@@ -39,6 +45,8 @@ function parseArgs(argv: string[]) {
     };
     if (a === '--games-dir') opts.games = value();
     else if (a === '--saves-dir') opts.saves = value();
+    else if (a === '--pictures-dir') opts.pictures = value();
+    else if (a === '--no-pictures') opts.showPictures = false;
     else if (a === '--no-wait') opts.waits = false;
     else if (a === '--version') (process.stdout.write(`${pkg.version}\n`), process.exit(0));
     else if (a === '--help' || a === '-h') (process.stdout.write(USAGE), process.exit(0));
@@ -61,7 +69,13 @@ try {
 }
 if (!catalog.games.length) fail(`No .dat games in ${opts.games}`);
 
-const app = createAgent({ catalog, saves: new SaveStore(resolve(opts.saves)), waits: opts.waits, version: pkg.version });
+const app = createAgent({
+  catalog,
+  saves: new SaveStore(resolve(opts.saves)),
+  waits: opts.waits,
+  version: pkg.version,
+  pictures: opts.showPictures ? new Pictures(resolve(opts.pictures)) : undefined,
+});
 const stream = acp.ndJsonStream(
   Writable.toWeb(process.stdout) as WritableStream<Uint8Array>,
   Readable.toWeb(process.stdin) as ReadableStream<Uint8Array>,

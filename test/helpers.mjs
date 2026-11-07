@@ -8,7 +8,7 @@ import * as acp from '@agentclientprotocol/sdk';
 
 const MAIN = new URL('../dist/main.js', import.meta.url).pathname;
 
-export async function startAgent(extraArgs = [], { wait = false } = {}) {
+export async function startAgent(extraArgs = [], { wait = false, clientCapabilities = {} } = {}) {
   const savesDir = mkdtempSync(join(tmpdir(), 'sabal-acp-test-'));
   const child = spawn(process.execPath, [MAIN, ...(wait ? [] : ['--no-wait']), '--saves-dir', savesDir, ...extraArgs], {
     stdio: ['pipe', 'pipe', 'inherit'],
@@ -25,10 +25,11 @@ export async function startAgent(extraArgs = [], { wait = false } = {}) {
     acp.ndJsonStream(Writable.toWeb(child.stdin), Readable.toWeb(child.stdout)),
   );
   const ctx = conn.agent;
-  const init = await ctx.request(acp.methods.agent.initialize, { protocolVersion: acp.PROTOCOL_VERSION, clientCapabilities: {} });
+  const init = await ctx.request(acp.methods.agent.initialize, { protocolVersion: acp.PROTOCOL_VERSION, clientCapabilities });
   const { sessionId } = await ctx.request(acp.methods.agent.session.new, { cwd: process.cwd(), mcpServers: [] });
 
-  const text = () => updates.filter((u) => u.sessionUpdate === 'agent_message_chunk').map((u) => u.content.text).join('');
+  const text = () => updates.filter((u) => u.sessionUpdate === 'agent_message_chunk' && u.content.type === 'text').map((u) => u.content.text).join('');
+  const images = () => updates.filter((u) => u.sessionUpdate === 'agent_message_chunk' && u.content.type === 'image').map((u) => u.content);
   const waitFor = async (pred, ms = 3000) => {
     const end = Date.now() + ms;
     while (!pred()) {
@@ -44,5 +45,5 @@ export async function startAgent(extraArgs = [], { wait = false } = {}) {
   };
   const cancel = () => ctx.notify(acp.methods.agent.session.cancel, { sessionId });
   const close = () => { conn.close(); child.kill(); };
-  return { init, sessionId, updates, text, waitFor, prompt, cancel, close, savesDir, ctx };
+  return { init, sessionId, updates, text, images, waitFor, prompt, cancel, close, savesDir, ctx };
 }

@@ -18,6 +18,8 @@ Point your ACP client at `node /path/to/sabal-acp/dist/main.js` (or the `sabal-a
 | --- | --- | --- |
 | `--games-dir <dir>` | bundled `games/` (env `SABAL_GAMES`) | folder of uncompressed `.dat` games |
 | `--saves-dir <dir>` | `~/.sabal-acp/saves` (env `SABAL_SAVES`) | where saves are written |
+| `--pictures-dir <dir>` | `~/.sabal-acp/pictures` (env `SABAL_PICTURES`) | your own SAGA tape or snapshot files, for room pictures |
+| `--no-pictures` | off | never send pictures |
 | `--no-wait` | off | skip the games' 2-second pauses |
 
 ## Playing
@@ -39,11 +41,28 @@ Leaving, restarting or loading with unsaved progress asks you to repeat the comm
 
 **Saves** live in `<saves-dir>/<game-id>/<name>.sav` (SABAL's exact save text) with a `<name>.json` beside it (game, time, room, turn count). A bare `.sav` copied in by hand also loads.
 
+## Pictures
+
+Scott Adams's games were later sold with pictures, as Scott Adams Graphic Adventures (SAGA). sabal-acp can show a room's picture above its description, drawn from your own copy of an illustrated release. The pictures are © Scott Adams and Adventure International and are not included here.
+
+To try it, put a ZX Spectrum tape (`.tap` or `.tzx`) or 48K snapshot (`.sna`) of a supported release in `~/.sabal-acp/pictures`. sabal-acp recognises the game from the file's contents, so any file name works.
+
+| Game | Release | Pictures |
+| --- | --- | --- |
+| Adventureland | ZX Spectrum, Adventure International (UK) | every room, objects such as the open door and the sleeping dragon, close-ups of the genie, the dragon and the explosion |
+| Secret Mission | ZX Spectrum, Adventure International (UK) | every room, the dark, close-ups of the briefing tape and the bomb |
+| The Sorcerer of Claymorgue Castle | ZX Spectrum, Adventure International (UK) | 15 of 32 rooms |
+| Spider-Man | ZX Spectrum, Adventure International (UK) | 33 of 40 rooms |
+
+Pictures go only to clients that say they can draw PNG images in agent messages. ACP has no standard way to say that yet, so for now that means Deft Console, which says so in `clientCapabilities._meta["deft.co"].display.image`. Other clients get the text, as before. A picture is sent when you enter a room whose picture differs from the last one shown.
+
+The Spectrum games choose their pictures in their own code, not in their data, so each picture here was matched to its room, object or message by eye. Where the match wasn't clear, the room shows no picture rather than a wrong one. Savage Island's pictures use a later version of the format that isn't decoded correctly yet, and The Incredible Hulk uses an earlier one.
+
 ## How it maps to ACP
 
 - `initialize`: no auth, text prompts only, `loadSession: false`.
 - `session/new`: sends `available_commands_update`, a `session_info_update` title, and the welcome screen.
-- `session/prompt`: one turn of the menu/game state machine; output is one `agent_message_chunk` per turn, split only at the games' pauses. Room descriptions are fenced `text` blocks; game narration is Markdown-escaped with its line breaks kept. The session title follows the current game.
+- `session/prompt`: one turn of the menu/game state machine; output is one `agent_message_chunk` per turn, split only at the games' pauses and before a room picture (an `image` block). Room descriptions are fenced `text` blocks; game narration is Markdown-escaped with its line breaks kept. The session title follows the current game.
 - `session/cancel`: cuts a pause short; the turn ends with `stopReason: "cancelled"`.
 
 ## Layout
@@ -55,6 +74,7 @@ src/controller.ts  menu / playing / save-name state machine (no ACP)
 src/render.ts      engine text → Markdown
 src/catalog.ts     game discovery and titles
 src/saves.ts       save store
+src/pictures/      SAGA room pictures: tape loading, picture decoding, PNG
 games/             bundled game databases
 test/              end-to-end tests over a real ACP stdio connection
 ```
@@ -64,3 +84,5 @@ test/              end-to-end tests over a real ACP stdio connection
 ## Licence
 
 The code is MIT licensed. The bundled games in `games/` are not: they are © Scott Adams, 1978–1985, and he distributes them as shareware that may be freely downloaded and enjoyed, with payment voluntary. They come unchanged from The Scott Adams Collection 2.2 on the Interactive Fiction Archive, converted by Paul David Doherty. See [`games/README.md`](games/README.md) for the full notice and credits, and [msadams.com](https://www.msadams.com/) to support Scott Adams.
+
+The picture decoder in `src/pictures/bdp.ts` follows David Lodge's format notes on the Adventure International Memorial site and his MIT-licensed `sagadraw.c`, written with help from Paul David Doherty. See [`NOTICE`](NOTICE).

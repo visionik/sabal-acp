@@ -4,6 +4,7 @@ import { createSession, SaveError, SabalError, type Session, type StepResult } f
 import type { Catalog, Game } from './catalog.js';
 import { SaveStore, cleanSaveName, autoSaveName, type SaveEntry } from './saves.js';
 import { roomBlock, narration, note } from './render.js';
+import type { Pictures } from './pictures/index.js';
 
 export interface Io {
   /** Append Markdown to the agent's reply. */
@@ -12,11 +13,15 @@ export interface Io {
   wait(ms: number): Promise<void>;
   /** Show a session title, if the client supports it. */
   title(text: string): void | Promise<void>;
+  /** Show a PNG picture, if the client can draw images. */
+  image?(png: Buffer, alt: string): void | Promise<void>;
 }
 
 export interface ControllerOptions {
   /** Honour the engine's 2-second pauses (default true). */
   waits?: boolean;
+  /** Room pictures, when the client can show images. */
+  pictures?: Pictures;
 }
 
 type State = 'menu' | 'playing' | 'save-name';
@@ -47,6 +52,9 @@ export class Controller {
   private confirm: string | undefined;
   private lastSaveList: SaveEntry[] = [];
   private readonly waits: boolean;
+  private readonly pictures: Pictures | undefined;
+  /** The picture last shown in this game, so moving within it doesn't repeat it. */
+  private shownPicture: string | undefined;
 
   constructor(
     private readonly catalog: Catalog,
@@ -54,6 +62,7 @@ export class Controller {
     options: ControllerOptions = {},
   ) {
     this.waits = options.waits ?? true;
+    this.pictures = options.pictures;
   }
 
   get currentState(): State {
@@ -221,6 +230,7 @@ export class Controller {
     this.state = 'playing';
     this.turns = from?.turns ?? 0;
     this.dirty = false;
+    this.shownPicture = undefined;
     await io.title(`SABAL · ${game.title}`);
     await io.emit(
       note(
@@ -282,15 +292,26 @@ export class Controller {
     for (;;) {
       let buffer = '';
       const flush = async () => {
+        await this.showCloseUp(buffer, io);
         const md = narration(buffer);
         buffer = '';
         if (md) await io.emit(md);
       };
+      // The engine redraws the room after some moves, as a terminal would
+      // repaint its top window; in a chat that would print it twice.
+      let lastRoom: string | undefined;
       for (const event of result.events) {
+        if (event.kind === 'room') {
+          if (event.text === lastRoom && !buffer) continue;
+          lastRoom = event.text;
+        } else if (event.kind === 'response' || event.kind === 'diagnostic') {
+          lastRoom = undefined;
+        }
         switch (event.kind) {
           case 'room':
             await flush();
             this.room = event.text.split('\n')[0]?.trim() ?? '';
+            await this.showPicture(session, io);
             await io.emit(roomBlock(event.text));
             break;
           case 'response':
@@ -339,6 +360,29 @@ export class Controller {
       }
       return;
     }
+  }
+
+  /** Show the room's picture if it differs from the one on screen. */
+  private async showPicture(session: Session, io: Io): Promise<void> {
+    if (!this.pictures || !io.image || !this.game) return;
+    const picture = this.pictures.forRoom(this.game.id, session.snapshot);
+    if (!picture) {
+      this.shownPicture = undefined; // darkness or a room without one: show the next picture again
+      return;
+    }
+    if (picture.key === this.shownPicture) return;
+    this.shownPicture = picture.key;
+    await io.image(picture.png, `${this.room} (${picture.platform} picture)`);
+  }
+
+  /** Show a close-up for something the game just said (a genie appearing, say). */
+  private async showCloseUp(text: string, io: Io): Promise<void> {
+    if (!text || !this.pictures || !io.image || !this.game) return;
+    const picture = this.pictures.forMessage(this.game.id, text);
+    if (!picture) return;
+    this.shownPicture = undefined; // the room's picture shows again next time
+    const caption = text.trim().split('\n')[0]!.trim();
+    await io.image(picture.png, `${caption} (${picture.platform} picture)`);
   }
 
   private async engineFailure(err: unknown, io: Io): Promise<void> {
