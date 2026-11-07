@@ -14,7 +14,7 @@ async function withAgent(fn) {
   }
 }
 
-test('initialize advertises a text-only agent with no auth', () =>
+test('initialize advertises an agent with text prompts and no auth', () =>
   withAgent(async (a) => {
     assert.equal(a.init.agentInfo.name, 'sabal-acp');
     assert.deepEqual(a.init.authMethods, []);
@@ -164,4 +164,11 @@ test('slash commands work in the menu too, and unknown ones are listed', () =>
     assert.match(r.text, /I don't know `\/frob`/);
     r = await a.prompt('/save');
     assert.match(r.text, /not in a game/);
+  }));
+
+test('a move shows the new room once, though the engine draws it twice', () =>
+  withAgent(async (a) => {
+    await a.prompt('1');
+    const r = await a.prompt('CLIMB TREE');
+    assert.equal(r.text.match(/I'm in a top of an oak/g).length, 1);
   }));
