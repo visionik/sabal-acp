@@ -4,7 +4,7 @@ import * as acp from '@agentclientprotocol/sdk';
 import { Controller, SLASH_COMMANDS, type Io } from './controller.js';
 import type { Catalog } from './catalog.js';
 import type { SaveStore } from './saves.js';
-import type { Pictures } from './pictures/index.js';
+import type { Pictures } from './pictures.js';
 import type { Settings } from './settings.js';
 
 export interface AgentOptions {

@@ -4,7 +4,7 @@ import { createSession, SaveError, SabalError, type Session, type StepResult } f
 import type { Catalog, Game } from './catalog.js';
 import { SaveStore, cleanSaveName, autoSaveName, type SaveEntry } from './saves.js';
 import { roomBlock, narration, note } from './render.js';
-import type { Pictures } from './pictures/index.js';
+import type { Pictures } from './pictures.js';
 import { Settings, MIN_SCALE, MAX_SCALE } from './settings.js';
 
 export interface Io {

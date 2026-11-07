@@ -47,35 +47,9 @@ Leaving, restarting or loading with unsaved progress asks you to repeat the comm
 
 Scott Adams's games were later sold with pictures, as Scott Adams Graphic Adventures (SAGA). sabal-acp can show a room's picture above its description, drawn from your own copy of an illustrated release. The pictures are © Scott Adams and Adventure International and are not included here.
 
-To try it, put your copy of a supported release in `~/.sabal-acp/pictures`. sabal-acp recognises the game from the file's contents, so any file name works.
-
-| Game | Release | File | Pictures |
-| --- | --- | --- | --- |
-| Adventureland | ZX Spectrum (UK art) | tape `.tap`/`.tzx` or snapshot `.sna` | every room; the open door, the bear, the sleeping dragon and more drawn in; close-ups of the genie, the dragon and the explosion |
-| | Atari 8-bit (US art, line drawings) | picture disk (side B) `.atr` | every room and the dark |
-| Pirate Adventure | Atari 8-bit (US art, line drawings) | picture disk (side B) `.atr` | every room and the dark |
-| Secret Mission | ZX Spectrum (UK art) | tape or snapshot | every room, the dark, close-ups of the briefing tape and the bomb |
-| The Sorcerer of Claymorgue Castle | Commodore 64 (US art) | disk `.d64` | every room and the dark |
-| | Atari 8-bit (US art) | picture disk (side B) `.atr` | every room and the dark |
-| | ZX Spectrum (UK art) | tape or snapshot | 15 of 32 rooms |
-| Spider-Man | Commodore 64 (US art) | disk `.d64` | 39 of 40 rooms |
-| | ZX Spectrum (UK art) | tape or snapshot | 33 of 40 rooms |
-| Strange Odyssey | Atari 8-bit (US art, line drawings) | picture disk (side B) `.atr` | 24 of 35 rooms (the rest have none on the disk), and the dark |
-| Buckaroo Banzai | Commodore 64 (US art) | disk `.d64` | 28 of 35 rooms |
-
-When you have more than one release of a game, the most complete one is used, in the order listed.
+To try it, put your copy of a supported release in `~/.sabal-acp/pictures`: a ZX Spectrum tape or snapshot, an Atari picture disk, or a Commodore 64 disk. SABAL recognises the game from the file's contents, so any file name works. [SABAL's README](https://github.com/visionik/sabal#show-the-pictures-from-the-illustrated-releases) lists the releases it can read and how many rooms each covers: Adventureland, Pirate Adventure, Secret Mission, Strange Odyssey, The Sorcerer of Claymorgue Castle, Spider-Man and Buckaroo Banzai.
 
 Pictures go only to clients that say they can draw PNG images in agent messages. ACP has no standard way to say that yet, so for now that means Deft Console, which says so in `clientCapabilities._meta["deft.co"].display.image`. Other clients get the text, as before. A picture is sent when you enter a room whose picture differs from the last one shown.
-
-How a picture is matched to its room depends on the release:
-- **Commodore 64:** each room's picture is a file named after the room. A room without its own file shares the picture of a room with the same description, such as Spider-Man's several elevator shafts.
-- **Atari:** the pictures are stored on disk in room order, or, for the line-drawn releases, listed in an index on the disk.
-- **Spectrum:** the games choose pictures in their own code, not their data, so each picture was matched to its room, object or message by eye. Where the match wasn't clear, the room shows no picture rather than a wrong one.
-
-Not yet supported:
-- Savage Island's Spectrum pictures use a later version of the format that doesn't decode correctly yet.
-- The Hulk's Spectrum pictures use an earlier version.
-- The Apple II releases draw their pictures as lines, like the early Atari ones, but on a different screen and with their own colours.
 
 ## How it maps to ACP
 
@@ -93,7 +67,7 @@ src/controller.ts  menu / playing / save-name state machine (no ACP)
 src/render.ts      engine text → Markdown
 src/catalog.ts     game discovery and titles
 src/saves.ts       save store
-src/pictures/      SAGA room pictures: tape and disk loading, Spectrum, Atari and C64 decoding, PNG
+src/pictures.ts    room pictures as PNGs, via SABAL's picture library (sabal/node)
 games/             bundled game databases
 test/              end-to-end tests over a real ACP stdio connection
 ```
@@ -104,4 +78,4 @@ test/              end-to-end tests over a real ACP stdio connection
 
 The code is MIT licensed. The bundled games in `games/` are not: they are © Scott Adams, 1978–1985, and he distributes them as shareware that may be freely downloaded and enjoyed, with payment voluntary. They come unchanged from The Scott Adams Collection 2.2 on the Interactive Fiction Archive, converted by Paul David Doherty. See [`games/README.md`](games/README.md) for the full notice and credits, and [msadams.com](https://www.msadams.com/) to support Scott Adams.
 
-The picture decoders in `src/pictures/bdp.ts` (Spectrum) and `src/pictures/atari.ts` (Atari and C64) follow David Lodge's format notes on the Adventure International Memorial site and his MIT-licensed `sagadraw.c` and `arledraw.c`, written with help from Paul David Doherty. See [`NOTICE`](NOTICE). The line-drawing format of the early Atari releases (`src/pictures/atari-lines.ts`) is undocumented; it was worked out from the pictures and from the game's own drawing code.
+The pictures are read and drawn by SABAL; see its README and NOTICE for credits.

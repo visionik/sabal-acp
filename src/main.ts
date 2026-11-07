@@ -9,7 +9,7 @@ import * as acp from '@agentclientprotocol/sdk';
 import { Catalog } from './catalog.js';
 import { SaveStore } from './saves.js';
 import { createAgent } from './agent.js';
-import { Pictures } from './pictures/index.js';
+import { Pictures } from './pictures.js';
 import { Settings } from './settings.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -22,7 +22,7 @@ It speaks ACP on stdin/stdout; point your client at this command.
 Options:
   --games-dir <dir>     Folder of .dat games (default: the bundled games; env SABAL_GAMES)
   --saves-dir <dir>     Where saves go (default: ~/.sabal-acp/saves; env SABAL_SAVES)
-  --pictures-dir <dir>  Your own SAGA tape or snapshot files, for room pictures
+  --pictures-dir <dir>  Your own SAGA tape, snapshot or disk files, for pictures
                         (default: ~/.sabal-acp/pictures; env SABAL_PICTURES)
   --no-pictures         Never send pictures
   --settings <file>     Where preferences such as /scale are kept
@@ -83,7 +83,7 @@ const app = createAgent({
   pictures: opts.showPictures
     ? new Pictures(resolve(opts.pictures), (game) => {
         const entry = catalog.byId(game);
-        return entry && catalog.database(entry).rooms.map((r) => r.text);
+        return entry && catalog.database(entry);
       })
     : undefined,
 });
