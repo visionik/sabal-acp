@@ -2,7 +2,8 @@ sabal-acp includes code adapted from the following project.
 
 ## textadventuregraphics
 
-src/pictures/bdp.ts is adapted from AdventureInternational/sagadraw.c in
+src/pictures/bdp.ts and src/pictures/atari.ts are adapted from
+AdventureInternational/sagadraw.c and arledraw.c in
 https://github.com/tautology0/textadventuregraphics by David Lodge.
 
 MIT License

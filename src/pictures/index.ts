@@ -2,23 +2,48 @@
 // draw the picture for the room they're in.
 //
 // The pictures are © Scott Adams / Adventure International and are not
-// bundled. Players put their own tape or snapshot files in the pictures folder.
+// bundled. Players put their own tape, snapshot or disk files in the pictures folder.
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Snapshot } from 'sabal';
-import { loadSpectrum, type Memory } from './tape.js';
-import { draw, plausible, type BdpLayout } from './bdp.js';
+import { loadSpectrum } from './tape.js';
+import { draw, plausible, type BdpLayout, type Bitmap } from './bdp.js';
+import { ATARI_PALETTE, drawAtari, loadAtr, pictureData, pictureOffsets, type AtariDisk } from './atari.js';
+import { readD64 } from './d64.js';
 import { encodePng } from './png.js';
 
-interface Release {
-  /** The game, as a catalog id (the .dat file name). */
-  readonly game: string;
-  readonly platform: string;
+type Release = SpectrumRelease | AtariRelease | C64Release;
+
+interface SpectrumRelease extends Common {
+  readonly platform: 'ZX Spectrum';
   /** Room text that must appear in the file, so one game's tape is never taken for another's. */
   readonly text: string;
   readonly layout: BdpLayout;
+}
+
+interface AtariRelease extends Common {
+  readonly platform: 'Atari 8-bit';
+  /** The picture disk (side B). */
+  readonly disk: AtariDisk;
+}
+
+interface C64Release extends Common {
+  readonly platform: 'Commodore 64';
+  /** Room text that must appear in one of the disk's files. */
+  readonly text: string;
+  /**
+   * The start of each room picture's file name, before the 3-digit room
+   * number: room 7's picture is `R007` or `R13007`, and `…000` is the dark.
+   * The files hold Atari-format pictures, so `rooms` and `dark` come from the disk.
+   */
+  readonly prefix: string;
+}
+
+interface Common {
+  /** The game, as a catalog id (the .dat file name). */
+  readonly game: string;
   /** Picture number for each room; rooms not listed have no picture. */
-  readonly rooms: Readonly<Record<number, number>>;
+  readonly rooms?: Readonly<Record<number, number>>;
   /** Small pictures drawn over a room's picture while one of the items is in that room. */
   readonly overlays?: readonly Overlay[];
   /** Full-screen pictures shown when the game prints a matching message. */
@@ -47,9 +72,21 @@ const same = (rooms: number[], picture: number) => Object.fromEntries(rooms.map(
  * Releases we can read. Room, item and message numbers are the TRS-80
  * database's (our .dat files). The Spectrum releases keep their own rules for
  * which picture to show, so each picture here was matched to its room, item
- * or message by eye.
+ * or message by eye. When a player has more than one release of a game, the
+ * first one listed here wins.
  */
 const RELEASES: readonly Release[] = [
+  { game: 'adv13', platform: 'Commodore 64', text: "*I'm on a Drawbridge", prefix: 'R13' },
+  { game: 'adv14b', platform: 'Commodore 64', text: 'Yoyodyne', prefix: 'R' },
+  { game: 'quest2', platform: 'Commodore 64', text: 'chem lab', prefix: 'R' },
+  {
+    // The pictures run in room order, from "It's too dark!" for room 0.
+    game: 'adv13',
+    platform: 'Atari 8-bit',
+    disk: { start: 0x287, count: 91, skipSector: 360, crc: 0x8b877c5f },
+    rooms: range(1, 32, 59),
+    dark: 58,
+  },
   {
     game: 'adv01',
     platform: 'ZX Spectrum',
@@ -130,7 +167,7 @@ const RELEASES: readonly Release[] = [
   },
 ];
 
-const EXTENSIONS = /\.(tap|tzx|sna)$/i;
+const EXTENSIONS = /\.(tap|tzx|sna|atr|d64)$/i;
 const MAX_FILE = 1 << 20;
 
 export interface Picture {
@@ -143,15 +180,34 @@ export interface Picture {
 
 interface Found {
   readonly release: Release;
-  readonly mem: Memory;
   readonly file: string;
+  /** Picture number for each room, and for the dark. */
+  readonly rooms: Readonly<Record<number, number>>;
+  readonly dark?: number;
+  /** Draw pictures one over another, as a PNG. */
+  readonly render: (layers: number[]) => Buffer;
+}
+
+interface Hit {
+  readonly release: Release;
+  readonly render: (layers: number[]) => Buffer;
+  readonly rooms?: Record<number, number>;
+  readonly dark?: number;
 }
 
 export class Pictures {
   private found: Map<string, Found> | undefined;
   private readonly cache = new Map<string, Buffer>();
 
-  constructor(private readonly dir: string) {}
+  /**
+   * @param roomTexts Each room's description for a game, so a room without a
+   *   picture of its own can share one with a room described the same way
+   *   (only for releases whose pictures are named by room).
+   */
+  constructor(
+    private readonly dir: string,
+    private readonly roomTexts?: (game: string) => readonly string[] | undefined,
+  ) {}
 
   /** Games with pictures, and the file each comes from. */
   list(): { game: string; platform: string; file: string }[] {
@@ -165,8 +221,8 @@ export class Pictures {
   /** The picture for where the player is, or undefined (dark, no picture, or no file). */
   forRoom(game: string, snapshot: Snapshot): Picture | undefined {
     const found = this.scan().get(game);
-    if (snapshot.dark) return found?.release.dark === undefined ? undefined : this.picture(found, [found.release.dark]);
-    const n = found?.release.rooms[snapshot.room];
+    if (snapshot.dark) return found?.dark === undefined ? undefined : this.picture(found, [found.dark]);
+    const n = found?.rooms[snapshot.room];
     if (!found || n === undefined) return undefined;
     const overlays = (found.release.overlays ?? [])
       .filter((o) => o.room === snapshot.room && o.items.some((i) => snapshot.itemLocations[i] === snapshot.room))
@@ -186,12 +242,23 @@ export class Pictures {
     const key = `${found.release.game}:${layers.join('+')}`;
     let png = this.cache.get(key);
     if (!png) {
-      let bitmap;
-      for (const n of layers) bitmap = draw(found.mem, found.release.layout, n, bitmap);
-      png = encodePng(bitmap!);
+      png = found.render(layers);
       this.cache.set(key, png);
     }
     return { png, key, platform: found.release.platform };
+  }
+
+  /** Give rooms without a picture the picture of a room with the same description. */
+  private shareByText(game: string, rooms: Record<number, number>): Record<number, number> {
+    const texts = this.roomTexts?.(game);
+    if (!texts) return rooms;
+    const shared = { ...rooms };
+    texts.forEach((text, room) => {
+      if (shared[room] !== undefined || !text) return;
+      const twin = texts.findIndex((t, r) => t === text && rooms[r] !== undefined);
+      if (twin >= 0) shared[room] = rooms[twin]!;
+    });
+    return shared;
   }
 
   private scan(): Map<string, Found> {
@@ -207,12 +274,14 @@ export class Pictures {
       const path = join(this.dir, name);
       try {
         if (statSync(path).size > MAX_FILE) continue;
-        const mem = loadSpectrum(name, readFileSync(path));
-        if (!mem) continue;
-        const text = Buffer.from(mem).toString('latin1');
-        for (const release of RELEASES) {
-          if (found.has(release.game) || !text.includes(release.text) || !plausible(mem, release.layout)) continue;
-          found.set(release.game, { release, mem, file: name });
+        const data = readFileSync(path);
+        for (const hit of recognise(name, data)) {
+          const { release } = hit;
+          const current = found.get(release.game);
+          if (current && RELEASES.indexOf(release) >= RELEASES.indexOf(current.release)) continue;
+          let rooms = hit.rooms ?? release.rooms ?? {};
+          if (hit.rooms) rooms = this.shareByText(release.game, rooms);
+          found.set(release.game, { release, file: name, render: hit.render, rooms, dark: hit.dark ?? release.dark });
         }
       } catch {
         // An unreadable or odd file is skipped.
@@ -225,3 +294,65 @@ export class Pictures {
 
 /** Games we can show pictures for, by title-independent id, for help text. */
 export const SUPPORTED = RELEASES.map((r) => ({ game: r.game, platform: r.platform }));
+
+/** The releases this file holds pictures for, each with a way to draw them. */
+function recognise(name: string, data: Uint8Array): Hit[] {
+  const hits: Hit[] = [];
+  const mem = loadSpectrum(name, data);
+  if (mem) {
+    const text = Buffer.from(mem).toString('latin1');
+    for (const release of RELEASES) {
+      if (release.platform !== 'ZX Spectrum' || !text.includes(release.text) || !plausible(mem, release.layout)) continue;
+      hits.push({
+        release,
+        render: (layers) => {
+          let bitmap: Bitmap | undefined;
+          for (const n of layers) bitmap = draw(mem, release.layout, n, bitmap);
+          return encodePng(bitmap!);
+        },
+      });
+    }
+  }
+  const sectors = /\.atr$/i.test(name) ? loadAtr(data) : undefined;
+  if (sectors) {
+    for (const release of RELEASES) {
+      if (release.platform !== 'Atari 8-bit') continue;
+      const pictures = pictureData(sectors, release.disk);
+      const offsets = pictures && pictureOffsets(pictures, release.disk);
+      if (!pictures || offsets!.length < release.disk.count) continue;
+      hits.push({
+        release,
+        render: ([n]) => {
+          // Atari pictures are drawn alone: overlays aren't supported for them yet.
+          const { bitmap, colours } = drawAtari(pictures, offsets![n!]!, release.disk.old);
+          return encodePng(bitmap, colours.map((c) => ATARI_PALETTE[c]!), 3);
+        },
+      });
+    }
+  }
+  const files = /\.d64$/i.test(name) ? readD64(data) : undefined;
+  if (files) {
+    const text = [...files.values()].map((f) => Buffer.from(f).toString('latin1')).join('\0');
+    for (const release of RELEASES) {
+      if (release.platform !== 'Commodore 64' || !text.includes(release.text)) continue;
+      const pictures = new Map<number, Uint8Array>();
+      for (const [file, body] of files) {
+        const match = file.startsWith(release.prefix) && /^\d{3}$/.exec(file.slice(release.prefix.length));
+        if (match) pictures.set(Number(match[0]), body);
+      }
+      if (!pictures.size) continue;
+      const rooms = Object.fromEntries([...pictures.keys()].filter((n) => n > 0).map((n) => [n, n]));
+      hits.push({
+        release,
+        rooms,
+        dark: pictures.has(0) ? 0 : undefined,
+        render: ([n]) => {
+          // The C64 releases use the Atari's picture format and colour numbers.
+          const { bitmap, colours } = drawAtari(pictures.get(n!)!, 0);
+          return encodePng(bitmap, colours.map((c) => ATARI_PALETTE[c]!), 3);
+        },
+      });
+    }
+  }
+  return hits;
+}
