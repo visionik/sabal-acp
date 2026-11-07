@@ -9,7 +9,6 @@ import * as acp from '@agentclientprotocol/sdk';
 import { Catalog } from './catalog.js';
 import { SaveStore } from './saves.js';
 import { createAgent } from './agent.js';
-import { Pictures } from './pictures.js';
 import { Settings } from './settings.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -74,13 +73,24 @@ try {
 }
 if (!catalog.games.length) fail(`No .dat games in ${opts.games}`);
 
+// Pictures need SABAL's Node helpers. If an older SABAL is installed (a stale
+// npx cache, say), play on without pictures rather than fail to start.
+let Pictures: typeof import('./pictures.js').Pictures | undefined;
+if (opts.showPictures) {
+  try {
+    ({ Pictures } = await import('./pictures.js'));
+  } catch (err) {
+    process.stderr.write(`sabal-acp: pictures are off (${(err as Error).message})\n`);
+  }
+}
+
 const app = createAgent({
   catalog,
   saves: new SaveStore(resolve(opts.saves)),
   waits: opts.waits,
   version: pkg.version,
   settings: new Settings(resolve(opts.settings)),
-  pictures: opts.showPictures
+  pictures: Pictures
     ? new Pictures(resolve(opts.pictures), (game) => {
         const entry = catalog.byId(game);
         return entry && catalog.database(entry);
