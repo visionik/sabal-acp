@@ -1,18 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { inflateSync } from 'node:zlib';
-import { loadSpectrum } from '../dist/pictures/tape.js';
-import { draw, plausible } from '../dist/pictures/bdp.js';
-import { encodePng } from '../dist/pictures/png.js';
-import { Pictures } from '../dist/pictures/index.js';
-import { fakeMemory, tap, CHARSET, COUNT } from './pictures.mjs';
+import { loadDatabase } from 'sabal';
+import { Pictures } from '../dist/pictures.js';
+import { fakeMemory, tap, CHARSET } from './pictures.mjs';
 import { startAgent } from './helpers.mjs';
 
-const layout = { charset: CHARSET, count: COUNT, version: 1 };
-const mem = () => loadSpectrum('fake.tap', tap(CHARSET, fakeMemory()));
 
 function picturesDir() {
   const dir = mkdtempSync(join(tmpdir(), 'sabal-acp-pictures-'));
@@ -21,75 +16,19 @@ function picturesDir() {
   return dir;
 }
 
-test('a .tap CODE block loads at its address; other files are ignored', () => {
-  const m = mem();
-  assert.equal(m[CHARSET + 8], 0xff);
-  assert.equal(loadSpectrum('fake.txt', new Uint8Array(10)), undefined);
-  assert.equal(loadSpectrum('fake.sna', new Uint8Array(10)), undefined);
-});
-
-test('a 48K .sna snapshot maps RAM from 0x4000', () => {
-  const sna = new Uint8Array(27 + 0xc000);
-  sna[27 + (CHARSET - 0x4000)] = 0x42;
-  assert.equal(loadSpectrum('x.sna', sna)[CHARSET], 0x42);
-});
-
-test('BDP cells draw characters in their pen and paper colours, mirrored on request', () => {
-  const m = mem();
-  assert.ok(plausible(m, layout));
-  assert.ok(!plausible(new Uint8Array(0x10000), layout));
-  const bmp = draw(m, layout, 0);
-  assert.equal(bmp.width, 256);
-  assert.equal(bmp.height, 96);
-  const at = (x, y) => bmp.pixels[y * 256 + x];
-  // Cell 0: solid, bright red pen (version 1 pictures are always bright).
-  assert.equal(at(0, 0), 10);
-  assert.equal(at(7, 7), 10);
-  // Cell 1: character 2 mirrored, so its one pixel moves from left to right; the rest is black paper.
-  assert.equal(at(8, 0), 8);
-  assert.equal(at(15, 0), 14);
-  // Outside the picture: untouched.
-  assert.equal(at(16, 0), 0);
-});
-
-test('PNGs are indexed colour, scaled by whole pixels', () => {
-  const png = encodePng(draw(mem(), layout, 0), undefined, 2);
-  assert.deepEqual([...png.subarray(1, 4)].map((c) => String.fromCharCode(c)).join(''), 'PNG');
-  assert.equal(png.readUInt32BE(16), 512);
-  assert.equal(png.readUInt32BE(20), 192);
-  assert.equal(png[25], 3);
-  const idat = png.indexOf('IDAT');
-  const raw = inflateSync(png.subarray(idat + 4, idat + 4 + png.readUInt32BE(idat - 4)));
-  assert.deepEqual([...raw.subarray(0, 3)], [0, 10, 10]);
-});
-
-test('Pictures finds the game, maps rooms to pictures, and shows nothing in the dark', () => {
-  const pictures = new Pictures(picturesDir());
+test('the Pictures wrapper turns SABAL pictures into PNGs, cached per scale', () => {
+  const pictures = new Pictures(picturesDir(), (game) =>
+    game === 'adv01' ? loadDatabase(readFileSync(new URL('../games/adv01.dat', import.meta.url), 'utf8')) : undefined,
+  );
   assert.deepEqual(pictures.list(), [{ game: 'adv01', platform: 'ZX Spectrum', file: 'fake.tap' }]);
-  assert.equal(pictures.forRoom('adv01', { room: 11, dark: false, itemLocations: [] }).key, 'adv01:10');
-  assert.equal(pictures.forRoom('adv01', { room: 14, dark: false, itemLocations: [] }).key, 'adv01:11');
-  assert.equal(pictures.forRoom('adv01', { room: 33, dark: false, itemLocations: [] }).key, 'adv01:27');
-  assert.equal(pictures.forRoom('adv01', { room: 11, dark: true, itemLocations: [] }), undefined);
+  const forest = pictures.forRoom('adv01', { room: 11, dark: false, itemLocations: [] });
+  assert.equal(forest.key, 'adv01:10');
+  assert.equal(forest.png.readUInt32BE(16), 1024, 'Spectrum pictures at 4x');
+  assert.equal(pictures.forRoom('adv01', { room: 11, dark: false, itemLocations: [] }).png, forest.png, 'cached');
+  assert.equal(pictures.forRoom('adv01', { room: 11, dark: false, itemLocations: [] }, 0.5).png.readUInt32BE(16), 512);
+  assert.equal(pictures.forMessage('adv01', 'A glowing Genie appears').key, 'adv01:34');
   assert.equal(pictures.forRoom('adv02', { room: 1, dark: false, itemLocations: [] }), undefined);
-  assert.equal(new Pictures('/nonexistent').list().length, 0);
-  // The same pictures without Adventureland's room text aren't taken for it.
-  const other = mkdtempSync(join(tmpdir(), 'sabal-acp-pictures-'));
-  writeFileSync(join(other, 'other.tap'), tap(CHARSET, fakeMemory().slice(0, -14)));
-  assert.equal(new Pictures(other).list().length, 0);
-});
-
-test('object overlays and message close-ups', () => {
-  const pictures = new Pictures(picturesDir());
-  const items = Array(60).fill(0);
-  const at = (room, placed) => pictures.forRoom('adv01', { room, dark: false, itemLocations: Object.assign([...items], placed) });
-  assert.equal(at(5, {}).key, 'adv01:4');
-  assert.equal(at(5, { 17: 5 }).key, 'adv01:4+29', 'the open door');
-  assert.equal(at(21, { 43: 21 }).key, 'adv01:15+31', 'the bear, in any of its states');
-  assert.equal(at(23, { 27: 23 }).key, 'adv01:17+32', 'the sleeping dragon');
-  assert.equal(at(22, { 27: 22 }).key, 'adv01:16', 'an overlay only belongs to its own room');
-  assert.equal(pictures.forMessage('adv01', 'A glowing Genie appears, drops somehting, then vanishes.').key, 'adv01:34');
-  assert.equal(pictures.forMessage('adv01', 'Gas bladder blew up').key, 'adv01:36');
-  assert.equal(pictures.forMessage('adv01', 'OK'), undefined);
+  assert.equal(new Pictures('/nonexistent', () => undefined).list().length, 0);
 });
 
 const DEFT_IMAGES = { _meta: { 'deft.co': { display: { image: { mimeTypes: ['image/png', 'image/gif'] } } } } };
