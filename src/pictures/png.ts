@@ -48,7 +48,7 @@ function chunk(type: string, data: Buffer): Buffer {
 }
 
 let table: Uint32Array | undefined;
-function crc32(buf: Buffer): number {
+export function crc32(buf: Uint8Array): number {
   if (!table) {
     table = new Uint32Array(256);
     for (let n = 0; n < 256; n++) {

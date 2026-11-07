@@ -74,7 +74,12 @@ const app = createAgent({
   saves: new SaveStore(resolve(opts.saves)),
   waits: opts.waits,
   version: pkg.version,
-  pictures: opts.showPictures ? new Pictures(resolve(opts.pictures)) : undefined,
+  pictures: opts.showPictures
+    ? new Pictures(resolve(opts.pictures), (game) => {
+        const entry = catalog.byId(game);
+        return entry && catalog.database(entry).rooms.map((r) => r.text);
+      })
+    : undefined,
 });
 const stream = acp.ndJsonStream(
   Writable.toWeb(process.stdout) as WritableStream<Uint8Array>,
