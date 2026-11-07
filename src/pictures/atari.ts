@@ -114,15 +114,15 @@ export function drawAtari(data: Uint8Array, offset: number, old = false): { bitm
 
 /**
  * The Atari's 256 colours (16 hues × 16 luminances, odd ones repeating the even),
- * approximated from the NTSC signal: hue 0 is grey, hue 1 gold, round the colour
- * wheel to hue 15.
+ * approximated from the NTSC signal: hue 0 is grey, hue 1 gold, then round the
+ * colour wheel (3–4 red, 7–8 blue, 12 green) to hue 15.
  */
 export const ATARI_PALETTE: readonly (readonly [number, number, number])[] = Array.from({ length: 256 }, (_, c) => {
   const hue = c >> 4;
   const luma = 0.05 + (((c & 15) >> 1) / 7) * 0.9;
-  const angle = (((hue - 1) * 24 - 15) * Math.PI) / 180;
-  const i = hue ? 0.22 * Math.cos(angle) : 0;
-  const q = hue ? 0.22 * Math.sin(angle) : 0;
+  const angle = (((hue - 1) * 25.7 - 47) * Math.PI) / 180;
+  const i = hue ? 0.3 * Math.cos(angle) : 0;
+  const q = hue ? 0.3 * Math.sin(angle) : 0;
   const byte = (v: number) => Math.max(0, Math.min(255, Math.round(v * 255)));
   return [byte(luma + 0.956 * i + 0.621 * q), byte(luma - 0.272 * i - 0.647 * q), byte(luma - 1.106 * i + 1.703 * q)] as const;
 });
