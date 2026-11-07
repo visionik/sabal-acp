@@ -4,12 +4,15 @@ import * as acp from '@agentclientprotocol/sdk';
 import { Controller, SLASH_COMMANDS, type Io } from './controller.js';
 import type { Catalog } from './catalog.js';
 import type { SaveStore } from './saves.js';
+import type { Pictures } from './pictures/index.js';
 
 export interface AgentOptions {
   catalog: Catalog;
   saves: SaveStore;
   waits: boolean;
   version: string;
+  /** Room pictures; shown only to clients that say they can draw PNG images. */
+  pictures?: Pictures;
 }
 
 interface Live {
@@ -23,6 +26,10 @@ interface Live {
 export function createAgent(options: AgentOptions): acp.AgentApp {
   const sessions = new Map<string, Live>();
   const app = acp.agent({ name: 'sabal-acp' });
+  // ACP has no standard way for a client to say it draws images in agent
+  // messages, so pictures go only to clients that say so in Deft Console's
+  // `clientCapabilities._meta["deft.co"].display.image`.
+  let drawsImages = false;
 
   const send = (ctx: acp.AgentContext, sessionId: string, update: acp.SessionUpdate) =>
     ctx.notify(acp.methods.client.session.update, { sessionId, update });
@@ -30,7 +37,9 @@ export function createAgent(options: AgentOptions): acp.AgentApp {
   const say = (ctx: acp.AgentContext, sessionId: string, text: string) =>
     text ? send(ctx, sessionId, { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text } }) : undefined;
 
-  app.onRequest(acp.methods.agent.initialize, () => ({
+  app.onRequest(acp.methods.agent.initialize, ({ params }) => {
+    drawsImages = clientDrawsPng(params.clientCapabilities?._meta);
+    return {
     protocolVersion: acp.PROTOCOL_VERSION,
     agentCapabilities: {
       loadSession: false,
@@ -38,13 +47,17 @@ export function createAgent(options: AgentOptions): acp.AgentApp {
     },
     agentInfo: { name: 'sabal-acp', title: 'SABAL', version: options.version },
     authMethods: [],
-  }));
+    };
+  });
 
   app.onRequest(acp.methods.agent.authenticate, () => ({}));
 
   app.onRequest(acp.methods.agent.session.new, ({ client }) => {
     const sessionId = randomUUID();
-    const controller = new Controller(options.catalog, options.saves, { waits: options.waits });
+    const controller = new Controller(options.catalog, options.saves, {
+      waits: options.waits,
+      pictures: drawsImages ? options.pictures : undefined,
+    });
     sessions.set(sessionId, { controller, queue: Promise.resolve() });
     // Updates for a session must follow the response that creates it, so the
     // welcome screen goes out on the next tick, after the reply is written.
@@ -92,6 +105,13 @@ export function createAgent(options: AgentOptions): acp.AgentApp {
           await flush();
           await send(client, params.sessionId, { sessionUpdate: 'session_info_update', title });
         },
+        image: async (png, alt) => {
+          await flush();
+          await send(client, params.sessionId, {
+            sessionUpdate: 'agent_message_chunk',
+            content: { type: 'image', mimeType: 'image/png', data: png.toString('base64'), _meta: { alt } },
+          });
+        },
         wait: async (ms) => {
           await flush();
           if (!cancelled()) await sleep(ms, turn.signal, signal);
@@ -134,4 +154,10 @@ function sleep(ms: number, ...signals: AbortSignal[]): Promise<void> {
     const timer = setTimeout(done, ms);
     for (const s of signals) s.addEventListener('abort', done, { once: true });
   });
+}
+
+function clientDrawsPng(meta: unknown): boolean {
+  const image = (meta as { 'deft.co'?: { display?: { image?: { mimeTypes?: unknown } } } } | null | undefined)?.['deft.co']
+    ?.display?.image;
+  return Array.isArray(image?.mimeTypes) && image.mimeTypes.includes('image/png');
 }
