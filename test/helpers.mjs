@@ -11,7 +11,7 @@ const MAIN = new URL('../dist/main.js', import.meta.url).pathname;
 export async function startAgent(extraArgs = [], { wait = false, clientCapabilities = {} } = {}) {
   const savesDir = mkdtempSync(join(tmpdir(), 'sabal-acp-test-'));
   const settings = join(savesDir, 'settings.json');
-  const child = spawn(process.execPath, [MAIN, ...(wait ? [] : ['--no-wait']), '--saves-dir', savesDir, '--settings', settings, ...extraArgs], {
+  const child = spawn(process.execPath, [MAIN, ...(wait ? [] : ['--no-wait']), '--saves-dir', savesDir, '--settings', settings, '--ng-cache', join(savesDir, 'ng'), ...extraArgs], {
     stdio: ['pipe', 'pipe', 'inherit'],
   });
   const updates = [];
