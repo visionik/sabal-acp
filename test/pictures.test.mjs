@@ -179,13 +179,11 @@ test('/style switches between the originals and the next-gen paintings, and is r
   let settings;
   try {
     await a.waitFor(() => a.text().includes('## Games'));
-    await a.prompt('1');
+    // From the game menu, so nothing is downloaded: drawing and fetching next-gen pictures are tested above.
     let r = await a.prompt('/style');
     assert.match(r.text, /Showing the original pictures/);
     r = await a.prompt('/style ng');
     assert.match(r.text, /Now showing the next-gen paintings/);
-    assert.match(r.text, /doesn't have next-gen pictures yet/, 'Adventureland has none yet');
-    assert.equal(pngWidth(a.images().at(-1)), 1024, 'the original is shown again');
     r = await a.prompt('/style sepia');
     assert.match(r.text, /Choose `\/style og`/);
     settings = join(a.savesDir, 'settings.json');
