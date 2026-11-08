@@ -113,18 +113,64 @@ test('/scale redraws the room bigger or smaller, and is remembered', async () =>
   }
 });
 
-test('style ng shows the next-gen painting when the game has one, and the original otherwise', () => {
-  const db = (game) => loadDatabase(readFileSync(new URL(`../games/${game}.dat`, import.meta.url), 'utf8'));
-  const pictures = new Pictures(picturesDir(), db);
+/**
+ * A tiny next-gen set for Pyramid of Doom: room 1 as a 1024x512 PNG, listed in
+ * a manifest with its checksum. With `files`, the PNG sits beside the manifest;
+ * without, it must be downloaded (from `served`).
+ */
+async function fakeNg(files) {
+  const { createHash } = await import('node:crypto');
+  const { mkdirSync } = await import('node:fs');
+  const { encodePng } = await import('sabal/node');
+  const room = encodePng({ width: 1024, height: 512, pixels: new Uint8Array(1024 * 512), palette: [[200, 150, 50]], scale: 1 });
+  const manifest = {
+    size: [1024, 512],
+    base: 'https://pictures.example/ng/',
+    games: { adv08: { rooms: { 1: 'adv08/room-1.png' } } },
+    files: { 'adv08/room-1.png': { size: room.length, sha256: createHash('sha256').update(room).digest('hex') } },
+  };
+  const dir = mkdtempSync(join(tmpdir(), 'sabal-acp-ng-'));
+  writeFileSync(join(dir, 'manifest.json'), JSON.stringify(manifest));
+  if (files) {
+    mkdirSync(join(dir, 'adv08'));
+    writeFileSync(join(dir, 'adv08/room-1.png'), room);
+  }
+  return { dir, served: { 'https://pictures.example/ng/adv08/room-1.png': room } };
+}
+
+const corpusDb = (game) => loadDatabase(readFileSync(new URL(`../games/${game}.dat`, import.meta.url), 'utf8'));
+
+test('style ng shows the next-gen painting when the game has one, and the original otherwise', async () => {
+  const { dir } = await fakeNg(true);
+  const pictures = new Pictures(picturesDir(), corpusDb, { dir });
   const desert = { room: 1, dark: false, itemLocations: [] };
   assert.ok(pictures.hasNg('adv08'), 'Pyramid of Doom has next-gen pictures');
   const ng = pictures.forRoom('adv08', desert, 1, 'ng');
-  assert.match(ng.key, /^ng:adv08:1$/);
+  assert.equal(ng.key, 'ng:adv08:1');
   assert.equal(ng.png.readUInt32BE(16), 1024, 'next-gen rooms are 1024 wide');
   assert.equal(pictures.forRoom('adv08', desert, 0.5, 'ng').png.readUInt32BE(16), 512);
   assert.match(pictures.forRoom('adv08', desert, 1, 'og').key, /^adv08:/, 'og is the original');
   // A game without next-gen pictures falls back to its original.
   assert.equal(pictures.forRoom('adv01', { room: 11, dark: false, itemLocations: [] }, 1, 'ng').key, 'adv01:10');
+});
+
+test('next-gen pictures not yet here are downloaded when asked, with the originals shown meanwhile', async () => {
+  const { dir, served } = await fakeNg(false);
+  const cache = mkdtempSync(join(tmpdir(), 'sabal-acp-ng-cache-'));
+  let fetched = 0;
+  const fetch = async (url) => {
+    fetched++;
+    return new Response(served[url]);
+  };
+  const pictures = new Pictures(picturesDir(), corpusDb, { dir, cache, fetch });
+  const desert = { room: 1, dark: false, itemLocations: [] };
+  assert.ok(pictures.ngToDownload('adv08') > 0, 'something to fetch');
+  assert.match(pictures.forRoom('adv08', desert, 1, 'ng').key, /^adv08:/, 'the original until they arrive');
+  await Promise.all([pictures.downloadNg('adv08'), pictures.downloadNg('adv08')]);
+  assert.equal(fetched, 1, 'each file once');
+  assert.equal(pictures.ngToDownload('adv08'), 0);
+  assert.equal(pictures.forRoom('adv08', desert, 1, 'ng').key, 'ng:adv08:1');
+  assert.equal(pictures.ngToDownload('adv01'), 0, 'nothing to fetch for a game without them');
 });
 
 test('/style switches between the originals and the next-gen paintings, and is remembered', async () => {
