@@ -24,7 +24,7 @@ Options:
   --pictures-dir <dir>  Your own SAGA tape, snapshot or disk files, for pictures
                         (default: ~/.sabal-acp/pictures; env SABAL_PICTURES)
   --no-pictures         Never send pictures
-  --settings <file>     Where preferences such as /scale are kept
+  --settings <file>     Where preferences such as /scale and /style are kept
                         (default: ~/.sabal-acp/settings.json; env SABAL_SETTINGS)
   --no-wait             Skip the games' 2-second pauses
   --version, --help
