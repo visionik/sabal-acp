@@ -25,7 +25,7 @@
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "^2.4.0",
-    "sabal": "github:visionik/sabal#e5b4177217772028365bb2d55f532ead26d4aae0"
+    "sabal": "github:visionik/sabal#7ad4abdd1bfd47313d7182c512c1086d44cdaeba"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",
