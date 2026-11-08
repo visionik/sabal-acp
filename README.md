@@ -20,7 +20,7 @@ Point your ACP client at `node /path/to/sabal-acp/dist/main.js` (or the `sabal-a
 | `--saves-dir <dir>` | `~/.sabal-acp/saves` (env `SABAL_SAVES`) | where saves are written |
 | `--pictures-dir <dir>` | `~/.sabal-acp/pictures` (env `SABAL_PICTURES`) | your own SAGA tape or snapshot files, for room pictures |
 | `--no-pictures` | off | never send pictures |
-| `--settings <file>` | `~/.sabal-acp/settings.json` (env `SABAL_SETTINGS`) | where preferences such as `/scale` are kept |
+| `--settings <file>` | `~/.sabal-acp/settings.json` (env `SABAL_SETTINGS`) | where preferences such as `/scale` and `/style` are kept |
 | `--no-wait` | off | skip the games' 2-second pauses |
 
 ## Playing
@@ -37,6 +37,7 @@ Point your ACP client at `node /path/to/sabal-acp/dist/main.js` (or the `sabal-a
 | `/saves` | list saves |
 | `/restart` | start the current game over |
 | `/scale [size]` | draw pictures bigger or smaller (`/scale 1.5`, `/scale 75%`); remembered between sessions |
+| `/style [og\|ng]` | show the original pictures (`og`) or SABAL's next-gen paintings (`ng`); games without next-gen pictures show their originals; remembered between sessions |
 | `/help` | how to play |
 
 Leaving, restarting or loading with unsaved progress asks you to repeat the command first.

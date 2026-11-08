@@ -5,9 +5,13 @@ import { dirname } from 'node:path';
 export const MIN_SCALE = 0.25;
 export const MAX_SCALE = 4;
 
+/** Which pictures to show: the originals, or the next-gen paintings. */
+export type Style = 'og' | 'ng';
+
 interface Data {
   /** How much to enlarge pictures: 1 is the usual size. */
   scale?: number;
+  style?: Style;
 }
 
 export class Settings {
@@ -32,6 +36,15 @@ export class Settings {
 
   set scale(value: number) {
     this.data.scale = value;
+    this.save();
+  }
+
+  get style(): Style {
+    return this.data.style === 'ng' ? 'ng' : 'og';
+  }
+
+  set style(value: Style) {
+    this.data.style = value;
     this.save();
   }
 

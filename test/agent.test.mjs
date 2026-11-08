@@ -30,7 +30,7 @@ test('a new session gets the welcome screen, menu, commands and title', () =>
     assert.match(t, /1\. Adventureland/);
     assert.match(t, /18\. Mini-Adventure Sampler/);
     const cmds = a.updates.find((u) => u.sessionUpdate === 'available_commands_update');
-    assert.deepEqual(cmds.availableCommands.map((c) => c.name), ['menu', 'save', 'load', 'saves', 'restart', 'scale', 'help']);
+    assert.deepEqual(cmds.availableCommands.map((c) => c.name), ['menu', 'save', 'load', 'saves', 'restart', 'scale', 'style', 'help']);
     assert.ok(a.updates.some((u) => u.sessionUpdate === 'session_info_update' && u.title === 'SABAL'));
   }));
 

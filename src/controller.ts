@@ -5,7 +5,7 @@ import type { Catalog, Game } from './catalog.js';
 import { SaveStore, cleanSaveName, autoSaveName, type SaveEntry } from './saves.js';
 import { roomBlock, narration, note } from './render.js';
 import type { Pictures } from './pictures.js';
-import { Settings, MIN_SCALE, MAX_SCALE } from './settings.js';
+import { Settings, MIN_SCALE, MAX_SCALE, type Style } from './settings.js';
 
 export interface Io {
   /** Append Markdown to the agent's reply. */
@@ -36,6 +36,7 @@ export const SLASH_COMMANDS = [
   { name: 'saves', description: 'List saved games' },
   { name: 'restart', description: 'Start the current game over' },
   { name: 'scale', description: 'Draw pictures bigger or smaller, e.g. /scale 1.5', input: { hint: 'size, e.g. 1.5' } },
+  { name: 'style', description: 'Show the original pictures (og) or the next-gen paintings (ng)', input: { hint: 'og or ng' } },
   { name: 'help', description: 'How to play, and these commands' },
 ] as const;
 
@@ -200,6 +201,8 @@ export class Controller {
         return this.saveCommand(arg, io);
       case 'scale':
         return this.scaleCommand(arg, io);
+      case 'style':
+        return this.styleCommand(arg, io);
       case 'restart':
         if (!this.game) return void (await io.emit(note("You're not in a game. Pick one from the menu first.")));
         if (this.dirty && confirming !== key) return this.askConfirm(key, 'start over', io);
@@ -373,7 +376,7 @@ export class Controller {
   /** Show the room's picture if it differs from the one on screen. */
   private async showPicture(session: Session, io: Io, again = false): Promise<boolean> {
     if (!this.pictures || !io.image || !this.game) return false;
-    const picture = this.pictures.forRoom(this.game.id, session.snapshot, this.settings.scale);
+    const picture = this.pictures.forRoom(this.game.id, session.snapshot, this.settings.scale, this.settings.style);
     if (!picture) {
       this.shownPicture = undefined; // darkness or a room without one: show the next picture again
       return false;
@@ -403,6 +406,28 @@ export class Controller {
     }
     await io.emit(note(`_Pictures are now drawn at ${shown(value)}._`));
     // Show the room again at the new size, so the change is visible straight away.
+    if (this.state === 'playing' && this.session) await this.showPicture(this.session, io, true);
+  }
+
+  private async styleCommand(arg: string, io: Io): Promise<void> {
+    const names = { og: 'the original pictures', ng: 'the next-gen paintings' } as const;
+    const wanted = arg.trim().toLowerCase();
+    const aliases: Record<string, Style> = { og: 'og', original: 'og', originals: 'og', ng: 'ng', next: 'ng', 'next-gen': 'ng', nextgen: 'ng' };
+    const style = aliases[wanted];
+    if (!wanted) {
+      const other = this.settings.style === 'og' ? 'ng' : 'og';
+      return void (await io.emit(
+        note(`Showing ${names[this.settings.style]}. Switch with \`/style ${other}\` (\`og\` for the originals, \`ng\` for the next-gen paintings).`),
+      ));
+    }
+    if (!style) return void (await io.emit(note('Choose `/style og` for the original pictures or `/style ng` for the next-gen paintings.')));
+    this.settings.style = style;
+    let text = `_Now showing ${names[style]}._`;
+    if (style === 'ng' && this.game && this.pictures && !this.pictures.hasNg(this.game.id)) {
+      text += ` _${escape(this.game.title)} doesn't have next-gen pictures yet, so you'll see the originals here._`;
+    }
+    if (!this.pictures || !io.image) text = `Pictures set to ${names[style]}, though this client isn't showing pictures.`;
+    await io.emit(note(text));
     if (this.state === 'playing' && this.session) await this.showPicture(this.session, io, true);
   }
 

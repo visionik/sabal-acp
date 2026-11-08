@@ -112,3 +112,39 @@ test('/scale redraws the room bigger or smaller, and is remembered', async () =>
     b.close();
   }
 });
+
+test('style ng shows the next-gen painting when the game has one, and the original otherwise', () => {
+  const db = (game) => loadDatabase(readFileSync(new URL(`../games/${game}.dat`, import.meta.url), 'utf8'));
+  const pictures = new Pictures(picturesDir(), db);
+  const desert = { room: 1, dark: false, itemLocations: [] };
+  assert.ok(pictures.hasNg('adv08'), 'Pyramid of Doom has next-gen pictures');
+  const ng = pictures.forRoom('adv08', desert, 1, 'ng');
+  assert.match(ng.key, /^ng:adv08:1$/);
+  assert.equal(ng.png.readUInt32BE(16), 1024, 'next-gen rooms are 1024 wide');
+  assert.equal(pictures.forRoom('adv08', desert, 0.5, 'ng').png.readUInt32BE(16), 512);
+  assert.match(pictures.forRoom('adv08', desert, 1, 'og').key, /^adv08:/, 'og is the original');
+  // A game without next-gen pictures falls back to its original.
+  assert.equal(pictures.forRoom('adv01', { room: 11, dark: false, itemLocations: [] }, 1, 'ng').key, 'adv01:10');
+});
+
+test('/style switches between the originals and the next-gen paintings, and is remembered', async () => {
+  const dir = picturesDir();
+  const a = await startAgent(['--pictures-dir', dir], { clientCapabilities: DEFT_IMAGES });
+  let settings;
+  try {
+    await a.waitFor(() => a.text().includes('## Games'));
+    await a.prompt('1');
+    let r = await a.prompt('/style');
+    assert.match(r.text, /Showing the original pictures/);
+    r = await a.prompt('/style ng');
+    assert.match(r.text, /Now showing the next-gen paintings/);
+    assert.match(r.text, /doesn't have next-gen pictures yet/, 'Adventureland has none yet');
+    assert.equal(pngWidth(a.images().at(-1)), 1024, 'the original is shown again');
+    r = await a.prompt('/style sepia');
+    assert.match(r.text, /Choose `\/style og`/);
+    settings = join(a.savesDir, 'settings.json');
+  } finally {
+    a.close();
+  }
+  assert.equal(JSON.parse(readFileSync(settings, 'utf8')).style, 'ng');
+});
