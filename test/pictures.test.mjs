@@ -28,7 +28,7 @@ test('the Pictures wrapper turns SABAL pictures into PNGs, cached per scale', ()
   assert.equal(pictures.forRoom('adv01', { room: 11, dark: false, itemLocations: [] }, 0.5).png.readUInt32BE(16), 512);
   assert.equal(pictures.forMessage('adv01', 'A glowing Genie appears').key, 'adv01:34');
   assert.equal(pictures.forRoom('adv02', { room: 1, dark: false, itemLocations: [] }), undefined);
-  assert.equal(new Pictures('/nonexistent', () => undefined).list().length, 0);
+  assert.deepEqual(new Pictures('/nonexistent', () => undefined).list().map((g) => g.platform), ['SABAL'], 'only the built-in pictures');
 });
 
 const DEFT_IMAGES = { _meta: { 'deft.co': { display: { image: { mimeTypes: ['image/png', 'image/gif'] } } } } };
