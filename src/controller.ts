@@ -250,6 +250,7 @@ export class Controller {
           : `**${game.title}** · type commands like \`GET LAMP\` · \`/help\` for agent commands`,
       ),
     );
+    await this.fetchNg(io, false);
     await this.settle(session.initialResult, io);
   }
 
@@ -428,7 +429,35 @@ export class Controller {
     }
     if (!this.pictures || !io.image) text = `Pictures set to ${names[style]}, though this client isn't showing pictures.`;
     await io.emit(note(text));
-    if (this.state === 'playing' && this.session) await this.showPicture(this.session, io, true);
+    if (this.state === 'playing' && this.session) {
+      await this.fetchNg(io, true);
+      await this.showPicture(this.session, io, true);
+    }
+  }
+
+  /**
+   * With next-gen pictures chosen, download the current game's if they aren't
+   * here yet: waiting for them (after /style ng), or in the background with the
+   * originals shown meanwhile (when a game starts).
+   */
+  private async fetchNg(io: Io, wait: boolean): Promise<void> {
+    if (this.settings.style !== 'ng' || !this.pictures || !io.image || !this.game) return;
+    const bytes = this.pictures.ngToDownload(this.game.id);
+    if (bytes === 0) return;
+    const size = `${Math.max(1, Math.round(bytes / 1e6))} MB`;
+    const title = this.game.title;
+    const download = this.pictures.downloadNg(this.game.id);
+    if (!wait) {
+      await io.emit(note(`_Downloading the next-gen pictures for ${escape(title)} (${size}); you'll see the originals until they're here._`));
+      download.catch(() => {}); // a failure shows up as the originals; /style ng says why
+      return;
+    }
+    await io.emit(note(`_Downloading the next-gen pictures for ${escape(title)} (${size})…_`));
+    try {
+      await download;
+    } catch (err) {
+      await io.emit(note(`Couldn't download the next-gen pictures (${escape(String((err as Error).message ?? err))}), so you'll see the originals.`));
+    }
   }
 
   /** Show a close-up for something the game just said (a genie appearing, say). */

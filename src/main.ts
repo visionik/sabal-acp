@@ -23,6 +23,8 @@ Options:
   --saves-dir <dir>     Where saves go (default: ~/.sabal-acp/saves; env SABAL_SAVES)
   --pictures-dir <dir>  Your own SAGA tape, snapshot or disk files, for pictures
                         (default: ~/.sabal-acp/pictures; env SABAL_PICTURES)
+  --ng-cache <dir>      Where next-gen pictures are kept once downloaded
+                        (default: ~/.sabal-acp/ng; env SABAL_NG_CACHE)
   --no-pictures         Never send pictures
   --settings <file>     Where preferences such as /scale and /style are kept
                         (default: ~/.sabal-acp/settings.json; env SABAL_SETTINGS)
@@ -35,6 +37,7 @@ function parseArgs(argv: string[]) {
     games: process.env.SABAL_GAMES || join(here, '..', 'games'),
     saves: process.env.SABAL_SAVES || join(homedir(), '.sabal-acp', 'saves'),
     pictures: process.env.SABAL_PICTURES || join(homedir(), '.sabal-acp', 'pictures'),
+    ngCache: process.env.SABAL_NG_CACHE || join(homedir(), '.sabal-acp', 'ng'),
     showPictures: true,
     settings: process.env.SABAL_SETTINGS || join(homedir(), '.sabal-acp', 'settings.json'),
     waits: true,
@@ -49,6 +52,7 @@ function parseArgs(argv: string[]) {
     if (a === '--games-dir') opts.games = value();
     else if (a === '--saves-dir') opts.saves = value();
     else if (a === '--pictures-dir') opts.pictures = value();
+    else if (a === '--ng-cache') opts.ngCache = value();
     else if (a === '--no-pictures') opts.showPictures = false;
     else if (a === '--settings') opts.settings = value();
     else if (a === '--no-wait') opts.waits = false;
@@ -91,10 +95,14 @@ const app = createAgent({
   version: pkg.version,
   settings: new Settings(resolve(opts.settings)),
   pictures: Pictures
-    ? new Pictures(resolve(opts.pictures), (game) => {
-        const entry = catalog.byId(game);
-        return entry && catalog.database(entry);
-      })
+    ? new Pictures(
+        resolve(opts.pictures),
+        (game) => {
+          const entry = catalog.byId(game);
+          return entry && catalog.database(entry);
+        },
+        { cache: resolve(opts.ngCache) },
+      )
     : undefined,
 });
 const stream = acp.ndJsonStream(
