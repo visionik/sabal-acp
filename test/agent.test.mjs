@@ -19,6 +19,8 @@ test('initialize advertises an agent with text prompts and no auth', () =>
     assert.equal(a.init.agentInfo.name, 'sabal-acp');
     assert.deepEqual(a.init.authMethods, []);
     assert.equal(a.init.agentCapabilities.loadSession, false);
+    // Deft Console sends enter on its own only to agents that ask (the save name prompt).
+    assert.deepEqual(a.init.agentCapabilities._meta, { 'deft.co': { emptyPrompt: {} } });
   }));
 
 test('a new session gets the welcome screen, menu, commands and title', () =>
