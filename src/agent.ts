@@ -47,6 +47,9 @@ export function createAgent(options: AgentOptions): acp.AgentApp {
     agentCapabilities: {
       loadSession: false,
       promptCapabilities: { image: false, audio: false, embeddedContext: false },
+      // Enter on its own means something here (an automatic save name, or "Tell me what to
+      // do"): ask Deft Console to send it, which it doesn't for other agents.
+      _meta: { 'deft.co': { emptyPrompt: {} } },
     },
     agentInfo: { name: 'sabal-acp', title: 'SABAL', version: options.version },
     authMethods: [],
